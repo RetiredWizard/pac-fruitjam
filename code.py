@@ -58,6 +58,10 @@ MODE_SCATTER = 0
 MODE_CHASE = 1
 MODE_FRIGHTENED = 2
 
+# Game States
+STATE_PLAY = 0
+STATE_DYING = 1
+
 # Level 1 Mode Timings (seconds)
 # Scatter, Chase, Scatter, Chase, Scatter, Chase, Scatter, Chase
 MODE_TIMES = [7, 20, 7, 20, 5, 20, 5, 999999]
@@ -295,6 +299,13 @@ class PacMan:
         DIR_DOWN: [(0, 48), (16, 48), (32, 0)],     # Down: Row 3
     }
     
+    # Death Animation Frames (Top Row, Tiles 3-13)
+    # x = 3*16 = 48, y = 0
+    # 11 frames fitting exactly to the end of the row (Tile 13)
+    DEATH_FRAMES = []
+    for i in range(11): # 11 frames
+        DEATH_FRAMES.append((48 + i * 16, 0))
+    
     def __init__(self):
         # Create sprite using TileGrid (1x2 tiles of 16x8 = 16x16 sprite)
         # Optimization: Use 16x8 tiles to handle non-16-divisible bitmap height (248px)
@@ -342,6 +353,32 @@ class PacMan:
         
         self.sprite[0, 0] = base_tile
         self.sprite[0, 1] = base_tile + tiles_per_row
+    
+    def set_death_frame(self, frame_idx):
+        """Set sprite tiles for death animation."""
+        if frame_idx >= len(self.DEATH_FRAMES):
+            frame_idx = len(self.DEATH_FRAMES) - 1
+            
+        fx, fy = self.DEATH_FRAMES[frame_idx]
+        
+        tiles_per_row = sprite_sheet.width // 16
+        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
+        
+        self.sprite[0, 0] = base_tile
+        self.sprite[0, 1] = base_tile + tiles_per_row
+
+    def reset(self):
+        """Reset Pac-Man to starting position."""
+        self.tile_x = 14
+        self.tile_y = 23
+        self.x = 106
+        self.y = 181
+        self.direction = DIR_NONE
+        self.next_direction = DIR_NONE
+        self.anim_frame = 0
+        self.anim_timer = 0
+        self.set_frame(DIR_RIGHT, 0)
+        self.update_sprite_pos()
     
     def update_sprite_pos(self):
         """Update sprite screen position."""
@@ -595,6 +632,7 @@ class Ghost:
     
     def __init__(self, ghost_type, start_tile_x, start_tile_y, x_offset=0):
         self.ghost_type = ghost_type
+        self.start_params = (start_tile_x, start_tile_y, x_offset)
         
         self.sprite = displayio.TileGrid(
             sprite_sheet,
@@ -1069,6 +1107,37 @@ class Ghost:
 
         self.update_sprite_pos()
 
+    def reset(self):
+        """Reset ghost to starting position."""
+        start_tile_x, start_tile_y, x_offset = self.start_params
+        
+        self.tile_x = start_tile_x
+        self.tile_y = start_tile_y
+        self.x = self.tile_x * 8 - 4 + x_offset
+        self.y = self.tile_y * 8 - 4
+        
+        self.direction = DIR_LEFT
+        self.next_direction = DIR_NONE
+        
+        # Ghost House State
+        self.in_house = False
+        self.house_timer = 0
+        if self.ghost_type != Ghost.TYPE_BLINKY:
+            self.in_house = True
+            # Initial bounce direction
+            if self.ghost_type == Ghost.TYPE_PINKY:
+                self.direction = DIR_DOWN # Start moving down to bounce
+            else:
+                self.direction = DIR_UP
+        
+        self.anim_frame = 0
+        self.anim_timer = 0
+        self.mode = MODE_SCATTER
+        self.reverse_pending = False
+        
+        self.set_frame(self.direction, 0)
+        self.update_sprite_pos()
+        
 # =============================================================================
 # CREATE GAME OBJECTS
 # =============================================================================
@@ -1146,38 +1215,88 @@ mode_index = 0
 current_mode = MODE_SCATTER
 last_mode_time = time.monotonic()
 
+game_state = STATE_PLAY
+death_timer = 0
+death_frame_idx = 0
+
 while True:
     start_time = time.monotonic()
     
-    # Update Mode
-    if mode_index < len(MODE_TIMES):
-        if time.monotonic() - last_mode_time > MODE_TIMES[mode_index]:
-            mode_index += 1
-            last_mode_time = time.monotonic()
-            
-            # Toggle Mode
-            if current_mode == MODE_SCATTER:
-                current_mode = MODE_CHASE
-                print("Mode: CHASE")
-            elif current_mode == MODE_CHASE:
-                current_mode = MODE_SCATTER
-                print("Mode: SCATTER")
+    if game_state == STATE_PLAY:
+        # Update Mode
+        if mode_index < len(MODE_TIMES):
+            if time.monotonic() - last_mode_time > MODE_TIMES[mode_index]:
+                mode_index += 1
+                last_mode_time = time.monotonic()
                 
-            # Apply to ghosts
-            for g in ghosts:
-                g.mode = current_mode
-                # Reverse direction on mode switch (Arcade rule)
-                # Only if not in house
-                if not g.in_house:
-                    g.reverse_pending = True
+                # Toggle Mode
+                if current_mode == MODE_SCATTER:
+                    current_mode = MODE_CHASE
+                    print("Mode: CHASE")
+                elif current_mode == MODE_CHASE:
+                    current_mode = MODE_SCATTER
+                    print("Mode: SCATTER")
+                    
+                # Apply to ghosts
+                for g in ghosts:
+                    g.mode = current_mode
+                    # Reverse direction on mode switch (Arcade rule)
+                    # Only if not in house
+                    if not g.in_house:
+                        g.reverse_pending = True
 
-    read_input()
-    pacman.update()
-    
-    # Update ghosts
-    for ghost in ghosts:
-        ghost.update()
+        read_input()
+        pacman.update()
         
+        # Update ghosts
+        for ghost in ghosts:
+            ghost.update()
+            
+            # Collision Check
+            # Simple bounding box or distance check
+            # 16x16 sprites, so center distance < 8 is a hit
+            dx = abs((pacman.x + 8) - (ghost.x + 8))
+            dy = abs((pacman.y + 8) - (ghost.y + 8))
+            
+            if dx < 6 and dy < 6: # Slightly forgiving hitbox
+                print("PAC-MAN DIED!")
+                game_state = STATE_DYING
+                death_timer = 0
+                death_frame_idx = 0
+                
+                # Hide ghosts
+                for g in ghosts:
+                    g.sprite.hidden = True
+                
+                # Pause briefly before animation
+                time.sleep(1.0)
+                break # Stop checking other ghosts
+
+    elif game_state == STATE_DYING:
+        death_timer += 1
+        if death_timer >= 8: # Animation speed
+            death_timer = 0
+            death_frame_idx += 1
+            
+            if death_frame_idx < len(PacMan.DEATH_FRAMES):
+                pacman.set_death_frame(death_frame_idx)
+            else:
+                # Death done
+                time.sleep(1.0)
+                
+                # Reset Game
+                pacman.reset()
+                for g in ghosts:
+                    g.reset()
+                    g.sprite.hidden = False
+                
+                # Reset Mode
+                mode_index = 0
+                current_mode = MODE_SCATTER
+                last_mode_time = time.monotonic()
+                
+                game_state = STATE_PLAY
+    
     # DEBUG: Heartbeat for ghost positions every 60 frames
     # if debug_timer == 0:
     #    for g in ghosts:

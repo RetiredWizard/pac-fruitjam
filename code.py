@@ -57,6 +57,7 @@ GATE = 4
 MODE_SCATTER = 0
 MODE_CHASE = 1
 MODE_FRIGHTENED = 2
+MODE_EATEN = 3
 
 # Game States
 STATE_PLAY = 0
@@ -616,6 +617,15 @@ class PacMan:
                     global score
                     score += 50
                     print(f"Score: {score} - POWER UP!")
+                    
+                    # Trigger Frightened Mode
+                    for g in ghosts:
+                        if g.mode != MODE_EATEN:
+                            g.mode = MODE_FRIGHTENED
+                            g.frightened_timer = 0
+                            # Only reverse if outside (inside ghosts just bounce)
+                            if not g.in_house:
+                                g.reverse_pending = True
 
 # =============================================================================
 # GHOST CLASS
@@ -671,6 +681,7 @@ class Ghost:
         
         self.mode = MODE_SCATTER
         self.reverse_pending = False
+        self.frightened_timer = 0
         
         # Scatter Targets (Fixed Corners)
         # Blinky: Top-Right (25, -3) - Outside maze to force Up/Right bias
@@ -691,20 +702,48 @@ class Ghost:
         
     def set_frame(self, direction, frame_idx):
         base_y = self.ghost_type
+        base_x = 0
         
-        # Layout assumption: Right, Left, Up, Down (2 frames each)
-        if direction == DIR_RIGHT:
-            base_x = 0
-        elif direction == DIR_LEFT:
-            base_x = 32
-        elif direction == DIR_UP:
-            base_x = 64
-        elif direction == DIR_DOWN:
-            base_x = 96
-        else:
-            base_x = 0 # Default
+        # Override for Frightened / Eaten modes
+        if self.mode == MODE_FRIGHTENED:
+            base_y = 64 # Row 4
+            # Flash white if timer is low (< 2 seconds = 120 frames)
+            if self.frightened_timer < 120 and (self.frightened_timer // 10) % 2 == 0:
+                base_x = 160 # White Ghosts (Tiles 10-11)
+            else:
+                base_x = 128 # Blue Ghosts (Tiles 8-9)
             
-        base_x += (frame_idx % 2) * 16
+            base_x += (frame_idx % 2) * 16
+            
+        elif self.mode == MODE_EATEN:
+            base_y = 80 # Row 5 (Eyes)
+            # Eyes Direction: Right, Left, Up, Down
+            if direction == DIR_RIGHT:
+                base_x = 128
+            elif direction == DIR_LEFT:
+                base_x = 144
+            elif direction == DIR_UP:
+                base_x = 160
+            elif direction == DIR_DOWN:
+                base_x = 176
+            else:
+                base_x = 128
+            
+        else:
+            # Normal Ghost
+            # Layout assumption: Right, Left, Up, Down (2 frames each)
+            if direction == DIR_RIGHT:
+                base_x = 0
+            elif direction == DIR_LEFT:
+                base_x = 32
+            elif direction == DIR_UP:
+                base_x = 64
+            elif direction == DIR_DOWN:
+                base_x = 96
+            else:
+                base_x = 0 # Default
+                
+            base_x += (frame_idx % 2) * 16
         
         tiles_per_row = sprite_sheet.width // 16
         base_tile = (base_y // 8) * tiles_per_row + (base_x // 16)
@@ -769,23 +808,28 @@ class Ghost:
         if ty < 0 or ty >= MAZE_ROWS:
             return False
             
+        # SUPER OVERRIDE for Eaten Ghosts near House
+        # If we are eyes and near the door/house, ignore walls
+        if self.mode == MODE_EATEN:
+            # House area: Rows 11-15, Cols 10-17
+            if 11 <= ty <= 15 and 10 <= tx <= 17:
+                return True
+            
         # Ghosts CAN pass through Ghost House Door
         # So we remove that check here
         
         # Prevent re-entry into Ghost House
         # Door is at Row 12 (above wall) -> Row 13 (wall gap)
         # If we are at Row 11 and trying to go DOWN into 12, forbid it
-        # unless we are dead (eyes) - TODO
+        # unless we are dead (eyes)
         if direction == DIR_DOWN and ty == 12 and (tx == 13 or tx == 14):
-             if not self.in_house: # If we are outside, don't go back in
+             if not self.in_house and self.mode != MODE_EATEN: # If we are outside, don't go back in (unless Eaten)
                  return False
-            
+                 
         result = MAZE_DATA[ty][tx] != WALL
-        if not result and self.ghost_type == 80: # Debug Pinky
-             # Only print if we are NOT in a wall (i.e. we are blocked by a wall ahead)
-             # This prevents spam when we are just sitting still
-             pass
-             # print(f"Pinky Blocked: Dir={direction} Pos={self.x:.1f},{self.y:.1f} Check={check_x:.1f},{check_y:.1f} Tile={tx},{ty}")
+        if not result and self.mode == MODE_EATEN:
+             print(f"Eyes BLOCKED at {self.tile_x},{self.tile_y} trying {direction} into {tx},{ty}")
+             
         return result
 
     def at_tile_center(self):
@@ -795,11 +839,15 @@ class Ghost:
         dist_y = abs((center_y - 4) % 8)
         dist_x = min(dist_x, 8 - dist_x)
         dist_y = min(dist_y, 8 - dist_y)
-        # Strict check for AI decision making to prevent jitter
-        # Must be strictly less than GHOST_SPEED (1.17) to avoid "gravity well" infinite loop
-        # Must be >= GHOST_SPEED / 2 (0.585) to ensure we don't skip the window
-        # 0.7 is the sweet spot.
-        return dist_x <= 0.7 and dist_y <= 0.7
+        
+        # Threshold depends on speed to ensure we don't skip the window
+        # Normal Speed (1.17) -> 0.7
+        # Eaten Speed (2.34) -> 1.5
+        threshold = 0.7
+        if self.mode == MODE_EATEN:
+            threshold = 1.5
+            
+        return dist_x <= threshold and dist_y <= threshold
 
     def get_chase_target(self):
         px, py = pacman.tile_x, pacman.tile_y
@@ -866,7 +914,10 @@ class Ghost:
             should_exit = False
             
             # Exit Conditions
-            if self.ghost_type == Ghost.TYPE_PINKY:
+            if self.ghost_type == Ghost.TYPE_BLINKY:
+                if self.house_timer > 60: # Wait 1s after revival
+                    should_exit = True
+            elif self.ghost_type == Ghost.TYPE_PINKY:
                 should_exit = True # Pinky leaves immediately
             elif self.ghost_type == Ghost.TYPE_INKY and self.house_timer > 300: # ~5s
                 should_exit = True
@@ -953,14 +1004,44 @@ class Ghost:
         if self.at_tile_center():
             # Determine Target
             tx, ty = 0, 0
+            
             if self.mode == MODE_CHASE:
                 tx, ty = self.get_chase_target()
-            else: # Scatter or Frightened (handled separately later)
+            elif self.mode == MODE_SCATTER:
                 tx, ty = self.scatter_target
+            elif self.mode == MODE_EATEN:
+                # Target Ghost House (Above Door)
+                tx, ty = 13, 11
+                # If we are at the door entrance (Row 11), target inside (Row 14)
+                # We need to force DOWN if we are at (13, 11) or (14, 11)
+                if self.tile_y == 11 and (self.tile_x == 13 or self.tile_x == 14):
+                    tx, ty = 13, 14
+                
+                # If we are inside (Row 14), we are done
+                if self.tile_y >= 14 and (self.tile_x == 13 or self.tile_x == 14):
+                    self.mode = current_mode # Revive!
+                    self.in_house = True
+                    self.house_timer = 0 # Restart house logic
+                    self.direction = DIR_UP # Reset direction
+                    
+                    # Snap to exact center of pen (Pinky's start: x=104)
+                    # This aligns with the exit target X
+                    self.x = 104
+                    self.y = 14 * 8 - 4 # 108
+                    self.tile_x = 13 # Technically between 13 and 14
+                    self.tile_y = 14
+                    self.update_sprite_pos()
+                    return
+            elif self.mode == MODE_FRIGHTENED:
+                # Random Target (Pseudo-Random Walk)
+                # We don't use a target tile, we just pick a random valid direction
+                pass
             
             # Find best direction
             best_dist = 999999
             best_dir = self.direction # Default continue
+            
+            valid_dirs = []
             
             # Check all 4 directions in priority order: UP, LEFT, DOWN, RIGHT
             for d in [DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT]:
@@ -991,20 +1072,37 @@ class Ghost:
                         # Prevent AI from choosing to go back into the house
                         # Block entering Row 12 (Door) from Row 11
                         if d == DIR_DOWN and ny == 12 and (nx == 13 or nx == 14):
-                            if not self.in_house:
+                            if not self.in_house and self.mode != MODE_EATEN:
                                 is_valid = False
 
                 elif ny == 14: # Tunnel
                     is_valid = True
                     
                 if is_valid:
+                    valid_dirs.append(d)
                     # Calculate distance to target from neighbor tile
-                    dist = (nx - tx)**2 + (ny - ty)**2
-                    if dist < best_dist:
-                        best_dist = dist
-                        best_dir = d
+                    if self.mode != MODE_FRIGHTENED:
+                        dist = (nx - tx)**2 + (ny - ty)**2
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_dir = d
             
-            self.direction = best_dir
+            if self.mode == MODE_FRIGHTENED:
+                if valid_dirs:
+                    self.direction = random.choice(valid_dirs)
+            elif self.mode == MODE_EATEN and (self.tile_y == 11 or self.tile_y == 12) and (self.tile_x == 13 or self.tile_x == 14):
+                 # Force DOWN if at door entrance OR inside door
+                 # print(f"Eyes forcing DOWN at {self.tile_x},{self.tile_y}")
+                 self.direction = DIR_DOWN
+                 # Force snap to X center to avoid hitting side walls of door
+                 target_x = self.tile_x * 8 - 4
+                 if abs(self.x - target_x) > 1.0:
+                     self.x = target_x
+            elif self.mode == MODE_EATEN and self.tile_y == 13 and (self.tile_x == 13 or self.tile_x == 14):
+                 # Force DOWN if inside house gap (Row 13) to reach target (Row 14)
+                 self.direction = DIR_DOWN
+            else:
+                self.direction = best_dir
             
             # Snap to center
             center_x = self.x + 8
@@ -1016,15 +1114,21 @@ class Ghost:
 
         # 2. Move
         if self.direction != DIR_NONE:
+            speed = GHOST_SPEED
+            if self.mode == MODE_FRIGHTENED:
+                speed = GHOST_SPEED * 0.6 # Slower
+            elif self.mode == MODE_EATEN:
+                speed = 2.0 # Fixed fast speed (was GHOST_SPEED * 2.0 = 2.34)
+                
             if self.can_move(self.direction):
                 if self.direction == DIR_UP:
-                    self.y -= GHOST_SPEED
+                    self.y -= speed
                 elif self.direction == DIR_DOWN:
-                    self.y += GHOST_SPEED
+                    self.y += speed
                 elif self.direction == DIR_LEFT:
-                    self.x -= GHOST_SPEED
+                    self.x -= speed
                 elif self.direction == DIR_RIGHT:
-                    self.x += GHOST_SPEED
+                    self.x += speed
                 
                 # Tunnel wrap
                 if self.x < -16:
@@ -1239,17 +1343,28 @@ while True:
                     
                 # Apply to ghosts
                 for g in ghosts:
-                    g.mode = current_mode
-                    # Reverse direction on mode switch (Arcade rule)
-                    # Only if not in house
-                    if not g.in_house:
-                        g.reverse_pending = True
+                    # Only switch mode if not Eaten or Frightened
+                    # Actually, if Frightened, we let the frightened timer expire naturally
+                    # But if we switch Scatter/Chase in background, we update the "base" mode?
+                    # For simplicity: If Frightened, ignore global mode switch until timer ends
+                    if g.mode != MODE_FRIGHTENED and g.mode != MODE_EATEN:
+                        g.mode = current_mode
+                        # Reverse direction on mode switch (Arcade rule)
+                        # Only if not in house
+                        if not g.in_house:
+                            g.reverse_pending = True
 
         read_input()
         pacman.update()
         
         # Update ghosts
         for ghost in ghosts:
+            # Handle Frightened Timer
+            if ghost.mode == MODE_FRIGHTENED:
+                ghost.frightened_timer += 1
+                if ghost.frightened_timer > 600: # 6 seconds (approx)
+                    ghost.mode = current_mode # Revert to global mode
+            
             ghost.update()
             
             # Collision Check
@@ -1259,18 +1374,29 @@ while True:
             dy = abs((pacman.y + 8) - (ghost.y + 8))
             
             if dx < 6 and dy < 6: # Slightly forgiving hitbox
-                print("PAC-MAN DIED!")
-                game_state = STATE_DYING
-                death_timer = 0
-                death_frame_idx = 0
-                
-                # Hide ghosts
-                for g in ghosts:
-                    g.sprite.hidden = True
-                
-                # Pause briefly before animation
-                time.sleep(1.0)
-                break # Stop checking other ghosts
+                if ghost.mode == MODE_FRIGHTENED:
+                    # Eat Ghost
+                    print(f"ATE GHOST {ghost.ghost_type}!")
+                    score += 200 # TODO: Multiplier (200, 400, 800, 1600)
+                    ghost.mode = MODE_EATEN
+                    # Freeze briefly for effect? (Arcade does this)
+                    # For now, just continue
+                elif ghost.mode == MODE_EATEN:
+                    pass # Ignore eyes
+                else:
+                    # Killed by ghost
+                    print("PAC-MAN DIED!")
+                    game_state = STATE_DYING
+                    death_timer = 0
+                    death_frame_idx = 0
+                    
+                    # Hide ghosts
+                    for g in ghosts:
+                        g.sprite.hidden = True
+                    
+                    # Pause briefly before animation
+                    time.sleep(1.0)
+                    break # Stop checking other ghosts
 
     elif game_state == STATE_DYING:
         death_timer += 1

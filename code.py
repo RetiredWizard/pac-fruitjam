@@ -53,6 +53,15 @@ DOT = 2
 POWER = 3
 GATE = 4
 
+# Ghost Modes
+MODE_SCATTER = 0
+MODE_CHASE = 1
+MODE_FRIGHTENED = 2
+
+# Level 1 Mode Timings (seconds)
+# Scatter, Chase, Scatter, Chase, Scatter, Chase, Scatter, Chase
+MODE_TIMES = [7, 20, 7, 20, 5, 20, 5, 999999]
+
 # =============================================================================
 # MAZE DATA - Collision map generated from maze_empty.bmp
 # 1 = wall, 0 = path/dot
@@ -622,6 +631,23 @@ class Ghost:
         self.anim_frame = 0
         self.anim_timer = 0
         
+        self.mode = MODE_SCATTER
+        self.reverse_pending = False
+        
+        # Scatter Targets (Fixed Corners)
+        # Blinky: Top-Right (25, -3) - Outside maze to force Up/Right bias
+        # Pinky: Top-Left (2, -3)
+        # Inky: Bottom-Right (27, 31)
+        # Clyde: Bottom-Left (0, 31)
+        if self.ghost_type == Ghost.TYPE_BLINKY:
+            self.scatter_target = (25, -3)
+        elif self.ghost_type == Ghost.TYPE_PINKY:
+            self.scatter_target = (2, -3)
+        elif self.ghost_type == Ghost.TYPE_INKY:
+            self.scatter_target = (27, 31)
+        elif self.ghost_type == Ghost.TYPE_CLYDE:
+            self.scatter_target = (0, 31)
+        
         self.set_frame(self.direction, 0)
         self.update_sprite_pos()
         
@@ -737,6 +763,64 @@ class Ghost:
         # 0.7 is the sweet spot.
         return dist_x <= 0.7 and dist_y <= 0.7
 
+    def get_chase_target(self):
+        px, py = pacman.tile_x, pacman.tile_y
+        pd = pacman.direction
+        
+        if self.ghost_type == Ghost.TYPE_BLINKY:
+            return (px, py)
+            
+        elif self.ghost_type == Ghost.TYPE_PINKY:
+            # 4 tiles ahead of Pac-Man
+            tx, ty = px, py
+            if pd == DIR_UP:
+                ty -= 4
+                tx -= 4 # Replicate overflow bug (Up+Left)
+            elif pd == DIR_DOWN:
+                ty += 4
+            elif pd == DIR_LEFT:
+                tx -= 4
+            elif pd == DIR_RIGHT:
+                tx += 4
+            return (tx, ty)
+            
+        elif self.ghost_type == Ghost.TYPE_INKY:
+            # Vector from Blinky to (Pac-Man + 2) * 2
+            # 1. Get position 2 tiles ahead of Pac-Man
+            tx, ty = px, py
+            if pd == DIR_UP:
+                ty -= 2
+                tx -= 2 # Bug
+            elif pd == DIR_DOWN:
+                ty += 2
+            elif pd == DIR_LEFT:
+                tx -= 2
+            elif pd == DIR_RIGHT:
+                tx += 2
+            
+            # 2. Get Blinky's position
+            bx, by = 0, 0
+            for g in ghosts:
+                if g.ghost_type == Ghost.TYPE_BLINKY:
+                    bx, by = g.tile_x, g.tile_y
+                    break
+            
+            # 3. Vector
+            vx = tx - bx
+            vy = ty - by
+            
+            return (bx + vx * 2, by + vy * 2)
+            
+        elif self.ghost_type == Ghost.TYPE_CLYDE:
+            # If dist > 8, target Pac-Man. Else scatter.
+            dist = (self.tile_x - px)**2 + (self.tile_y - py)**2
+            if dist > 64: # 8^2
+                return (px, py)
+            else:
+                return self.scatter_target
+                
+        return (px, py)
+    
     def update(self):
         # Handle Ghost House Behavior
         if self.in_house:
@@ -801,86 +885,96 @@ class Ghost:
             self.update_sprite_pos()
             return
 
-        # Basic AI: Move forward. At intersection, pick random valid direction (not reverse).
+        # Basic AI: Move forward. At intersection, pick best direction based on target.
         
-        # 1. Handle Turns at Intersections
-        if self.at_tile_center():
-            # print(f"Ghost {self.ghost_type} at intersection {self.tile_x},{self.tile_y}")
-            # Get valid directions
-            valid_dirs = []
-            for d in [DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT]:
-                # Don't reverse
-                is_reverse = False
-                if d == DIR_UP and self.direction == DIR_DOWN:
-                    is_reverse = True
-                if d == DIR_DOWN and self.direction == DIR_UP:
-                    is_reverse = True
-                if d == DIR_LEFT and self.direction == DIR_RIGHT:
-                    is_reverse = True
-                if d == DIR_RIGHT and self.direction == DIR_LEFT:
-                    is_reverse = True
-                
-                if not is_reverse:
-                    # Check grid neighbor directly (Look ahead 1 tile)
-                    nx, ny = int(self.tile_x), int(self.tile_y)
-                    if d == DIR_UP:
-                        ny -= 1
-                    elif d == DIR_DOWN:
-                        ny += 1
-                    elif d == DIR_LEFT:
-                        nx -= 1
-                    elif d == DIR_RIGHT:
-                        nx += 1
-                    
-                    is_valid = False
-                    if 0 <= nx < MAZE_COLS and 0 <= ny < MAZE_ROWS:
-                        if MAZE_DATA[ny][nx] != WALL:
-                            is_valid = True
-                            
-                            # ONE WAY DOOR CHECK FOR AI
-                            # Prevent AI from choosing to go back into the house
-                            # Block entering Row 12 (Door) from Row 11
-                            if d == DIR_DOWN and ny == 12 and (nx == 13 or nx == 14):
-                                if not self.in_house:
-                                    is_valid = False
-
-                    elif ny == 14: # Tunnel
-                        is_valid = True
-                        
-                    if is_valid:
-                        valid_dirs.append(d)
+        # 0. Handle Reverse Pending (Mode Switch)
+        if self.reverse_pending:
+            self.reverse_pending = False
+            rev = DIR_NONE
+            if self.direction == DIR_UP:
+                rev = DIR_DOWN
+            elif self.direction == DIR_DOWN:
+                rev = DIR_UP
+            elif self.direction == DIR_LEFT:
+                rev = DIR_RIGHT
+            elif self.direction == DIR_RIGHT:
+                rev = DIR_LEFT
             
-            if valid_dirs:
-                # If current direction is valid, bias towards it to avoid jittery movement
-                # But we want them to turn sometimes.
-                # Let's say 20% chance to turn if current is valid.
-                if self.direction in valid_dirs and len(valid_dirs) > 1:
-                    if random.random() < 0.2:
-                        self.direction = random.choice(valid_dirs)
-                elif valid_dirs:
-                    self.direction = random.choice(valid_dirs)
-                
-                # Snap to center
+            if self.can_move(rev):
+                self.direction = rev
+                # Snap to center to ensure clean turn
                 center_x = self.x + 8
                 center_y = self.y + 8
                 tile_x = int(center_x // 8)
                 tile_y = int(center_y // 8)
                 self.x = tile_x * 8 + 4 - 8
                 self.y = tile_y * 8 + 4 - 8
-            else:
-                # Dead end or stuck, try to reverse
-                reverse_dir = DIR_NONE
-                if self.direction == DIR_UP:
-                    reverse_dir = DIR_DOWN
-                elif self.direction == DIR_DOWN:
-                    reverse_dir = DIR_UP
-                elif self.direction == DIR_LEFT:
-                    reverse_dir = DIR_RIGHT
-                elif self.direction == DIR_RIGHT:
-                    reverse_dir = DIR_LEFT
+                return # Skip rest of update for this frame
+
+        # 1. Handle Turns at Intersections
+        if self.at_tile_center():
+            # Determine Target
+            tx, ty = 0, 0
+            if self.mode == MODE_CHASE:
+                tx, ty = self.get_chase_target()
+            else: # Scatter or Frightened (handled separately later)
+                tx, ty = self.scatter_target
+            
+            # Find best direction
+            best_dist = 999999
+            best_dir = self.direction # Default continue
+            
+            # Check all 4 directions in priority order: UP, LEFT, DOWN, RIGHT
+            for d in [DIR_UP, DIR_LEFT, DIR_DOWN, DIR_RIGHT]:
+                # Don't reverse (unless forced, handled above)
+                if (d == DIR_UP and self.direction == DIR_DOWN) or \
+                   (d == DIR_DOWN and self.direction == DIR_UP) or \
+                   (d == DIR_LEFT and self.direction == DIR_RIGHT) or \
+                   (d == DIR_RIGHT and self.direction == DIR_LEFT):
+                    continue
+                    
+                # Check validity (walls)
+                nx, ny = int(self.tile_x), int(self.tile_y)
+                if d == DIR_UP:
+                    ny -= 1
+                elif d == DIR_DOWN:
+                    ny += 1
+                elif d == DIR_LEFT:
+                    nx -= 1
+                elif d == DIR_RIGHT:
+                    nx += 1
                 
-                if self.can_move(reverse_dir):
-                    self.direction = reverse_dir
+                is_valid = False
+                if 0 <= nx < MAZE_COLS and 0 <= ny < MAZE_ROWS:
+                    if MAZE_DATA[ny][nx] != WALL:
+                        is_valid = True
+                        
+                        # ONE WAY DOOR CHECK FOR AI
+                        # Prevent AI from choosing to go back into the house
+                        # Block entering Row 12 (Door) from Row 11
+                        if d == DIR_DOWN and ny == 12 and (nx == 13 or nx == 14):
+                            if not self.in_house:
+                                is_valid = False
+
+                elif ny == 14: # Tunnel
+                    is_valid = True
+                    
+                if is_valid:
+                    # Calculate distance to target from neighbor tile
+                    dist = (nx - tx)**2 + (ny - ty)**2
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_dir = d
+            
+            self.direction = best_dir
+            
+            # Snap to center
+            center_x = self.x + 8
+            center_y = self.y + 8
+            tile_x = int(center_x // 8)
+            tile_y = int(center_y // 8)
+            self.x = tile_x * 8 + 4 - 8
+            self.y = tile_y * 8 + 4 - 8
 
         # 2. Move
         if self.direction != DIR_NONE:
@@ -1046,9 +1140,37 @@ blink_timer = 0
 blink_state = True # True = Visible, False = Hidden
 fps_start_time = time.monotonic() # For FPS calculation
 
+# Mode Timer
+mode_timer = 0
+mode_index = 0
+current_mode = MODE_SCATTER
+last_mode_time = time.monotonic()
+
 while True:
     start_time = time.monotonic()
     
+    # Update Mode
+    if mode_index < len(MODE_TIMES):
+        if time.monotonic() - last_mode_time > MODE_TIMES[mode_index]:
+            mode_index += 1
+            last_mode_time = time.monotonic()
+            
+            # Toggle Mode
+            if current_mode == MODE_SCATTER:
+                current_mode = MODE_CHASE
+                print("Mode: CHASE")
+            elif current_mode == MODE_CHASE:
+                current_mode = MODE_SCATTER
+                print("Mode: SCATTER")
+                
+            # Apply to ghosts
+            for g in ghosts:
+                g.mode = current_mode
+                # Reverse direction on mode switch (Arcade rule)
+                # Only if not in house
+                if not g.in_house:
+                    g.reverse_pending = True
+
     read_input()
     pacman.update()
     

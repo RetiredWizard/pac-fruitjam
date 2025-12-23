@@ -210,7 +210,7 @@ class SNESController:
             return
         
         try:
-            count = self.device.read(0x81, self.buf)
+            count = self.device.read(0x81, self.buf, timeout=10)
             
             # Capture idle state on first read
             if self.idle_state is None:

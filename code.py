@@ -1458,8 +1458,8 @@ for i in range(5):
         sprite_sheet, pixel_shader=sprite_palette,
         width=1, height=2, tile_width=16, tile_height=8
     )
-    life_tg.x = 20 + (i * 40)
-    life_tg.y = 400
+    life_tg.x = 20 + (i * int(.06 * SCREEN_WIDTH))
+    life_tg.y = int(.83 * SCREEN_HEIGHT)
     base_tile = get_tile_index(SPRITE_LIFE[0], SPRITE_LIFE[1])
     tiles_per_row = sprite_sheet.width // 16
     life_tg[0, 0] = base_tile
@@ -1488,23 +1488,23 @@ try:
     if bitmap_font and label:
         font = bitmap_font.load_font("fonts/press_start_2p.bdf")
         
-        one_up_label = label.Label(font, text="1UP", color=0xFFFFFF, x=20, y=50)
-        score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=80)
+        one_up_label = label.Label(font, text="1UP", color=0xFFFFFF, x=20, y=int(.1 * SCREEN_HEIGHT))
+        score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=int(.17 * SCREEN_HEIGHT))
         
-        hs_title = label.Label(font, text="HIGH", color=0xFFFFFF, x=20, y=150)
-        hs_title2 = label.Label(font, text="SCORE", color=0xFFFFFF, x=20, y=175)
-        high_score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=205)
+        hs_title = label.Label(font, text="HIGH", color=0xFFFFFF, x=20, y=int(.31 * SCREEN_HEIGHT))
+        hs_title2 = label.Label(font, text="SCORE", color=0xFFFFFF, x=20, y=int(.36 * SCREEN_HEIGHT))
+        high_score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=int(.43 * SCREEN_HEIGHT))
         
-        level_label = label.Label(font, text="LVL 1", color=0xFFFF00, x=20, y=280)
+        level_label = label.Label(font, text="LVL 1", color=0xFFFF00, x=20, y=int(.58 * SCREEN_HEIGHT))
         
         game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
         game_over_label.x = OFFSET_X + 40
-        game_over_label.y = 240
+        game_over_label.y = int(.5 * SCREEN_HEIGHT)
         game_over_label.hidden = True
         
         ready_label = label.Label(font, text="READY!", color=0xFFFF00)
         ready_label.x = OFFSET_X + 80
-        ready_label.y = 260
+        ready_label.y = int(.54 * SCREEN_HEIGHT)
         ready_label.hidden = True
         
         main_group.append(one_up_label)

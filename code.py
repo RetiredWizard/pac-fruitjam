@@ -436,12 +436,12 @@ class KEYBOARDController:
                 if ord(self.key_pressed) == 113:
                     self.key_pressed = self.key_pressed.upper()
 
-            if self.key_pressed == 32:
+            if ord(self.key_pressed) == 32:
                 self.button_select = True
             else:
                 self.button_select = False
 
-            if self.key_pressed == 10:
+            if ord(self.key_pressed) == 10:
                 self.button_start = True
             else:
                 self.button_start = False
@@ -1877,7 +1877,8 @@ while True:
     
     elif game_state == STATE_GAME_OVER:
         controller.update()
-        if controller.is_any_pressed():
+        keyb_controller.update()
+        if controller.is_any_pressed() or keyb_controller.is_any_pressed():
             reset_game()
             sound.play_startup()
             game_state = STATE_READY

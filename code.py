@@ -416,19 +416,19 @@ class KEYBOARDController:
         """Read joystick state."""
         if supervisor.runtime.serial_bytes_available:
             self.key_pressed = sys.stdin.read(1)
-            if ord(self.key_pressed) == 27: # Arrow keys start with escape
-                if supervisor.runtime.serial_bytes_available:
+            # Arrow keys start with escape
+            if ord(self.key_pressed) == 27 and supervisor.runtime.serial_bytes_available:
+                self.key_pressed = sys.stdin.read(1)
+                if self.key_pressed == "[" and supervisor.runtime.serial_bytes_available:
                     self.key_pressed = sys.stdin.read(1)
-                    if self.key_pressed == "[":
-                        self.key_pressed = sys.stdin.read(1)
-                        #                            UP  DWN  RGT  LFT
-                        if self.key_pressed not in ("A", "B", "C", "D"):
-                            self.key_pressed = None
-                    else:
+                    #                            UP  DWN  RGT  LFT
+                    if self.key_pressed not in ("A", "B", "C", "D"):
                         self.key_pressed = None
                 else:
-                    # Escape by itself
-                    self.key_pressed = "Q"
+                    self.key_pressed = None
+            elif ord(self.key_pressed) == 27:
+                # Escape by itself
+                self.key_pressed = "Q"
             #                                   q,  Q, Spc, enter
             elif ord(self.key_pressed) not in (113, 81, 32, 10):
                 self.key_pressed = None
@@ -445,10 +445,19 @@ class KEYBOARDController:
                 self.button_start = True
             else:
                 self.button_start = False
+        else:
+            self.key_pressed = None
+            self.button_start = False
+            self.button_select = False
 
     def get_direction(self):
         """Get direction."""
         
+        # Clear buffer in case keys are being held down, this improves the
+        # chance that when an update is called it's got a recent value
+        while supervisor.runtime.serial_bytes_available:
+            sys.stdin.read(1)
+
         if self.key_pressed == "A":
             return DIR_UP
         if self.key_pressed == "B":
@@ -1515,7 +1524,7 @@ def calibrate_joystick():
     main_group.append(calibrate_instr1)
     main_group.append(calibrate_instr2)
     limits = []
-    while len(limits) < 200:
+    while len(limits) < 150:
         controller.update()
         if controller.axis_x not in limits:
             limits.append(controller.axis_x)

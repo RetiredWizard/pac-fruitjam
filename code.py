@@ -1639,6 +1639,9 @@ while True:
             last_mode_time = time.monotonic()
     
     elif game_state == STATE_PLAY:
+        # play_state_start = time.monotonic()
+        # prev_time = None
+
         # Mode switching
         if mode_index < len(MODE_TIMES):
             if time.monotonic() - last_mode_time > MODE_TIMES[mode_index]:
@@ -1650,7 +1653,11 @@ while True:
                         g.mode = current_mode
                         if not g.in_house:
                             g.reverse_pending = True
-        
+
+        # now = time.monotonic()
+        # prev_time = now
+        # print(f"mode switching took: {now - play_state_start}")
+
         # Read input
         direction = controller.get_direction()
         if direction != DIR_NONE:
@@ -1662,7 +1669,11 @@ while True:
             pacman.next_direction = keyb_controller.get_direction()
         
         pacman.update()
-        
+
+        # now = time.monotonic()
+        # print(f"pacman update took: {now - prev_time}")
+        # prev_time = now
+
         # Eat dots
         if pacman.at_tile_center():
             sound.stop()
@@ -1693,7 +1704,11 @@ while True:
                             g.frightened_timer = 0
                             if not g.in_house:
                                 g.reverse_pending = True
-        
+
+        # now = time.monotonic()
+        # print(f"eat dots took: {now - prev_time}")
+        # prev_time = now
+
         # Update ghosts
         for ghost in ghosts:
             if ghost.mode == MODE_FRIGHTENED:
@@ -1740,7 +1755,11 @@ while True:
                         g.sprite.hidden = True
                     time.sleep(1.0)
                     break
-        
+
+        # now = time.monotonic()
+        # print(f"update ghosts took: {now - prev_time}")
+        # prev_time = now
+
         # Bonus fruit
         if bonus_fruit_active:
             bonus_fruit_timer += 1
@@ -1757,13 +1776,21 @@ while True:
                     sound.play_eat_ghost()
                     bonus_fruit_active = False
                     bonus_fruit.hidden = True
-        
+
+        # now = time.monotonic()
+        # print(f"bonus_fruit took: {now - prev_time}")
+        # prev_time = now
+
         # Level complete
         if dots_eaten >= TOTAL_DOTS:
             sound.stop()
             game_state = STATE_LEVEL_COMPLETE
             level_complete_timer = 0
-    
+
+        # now = time.monotonic()
+        # print(f"level complete check took: {now - prev_time}")
+        # prev_time = now
+
     elif game_state == STATE_DYING:
         death_timer += 1
         if death_timer >= 8:
@@ -1869,11 +1896,23 @@ while True:
             cover.hidden = blink_state
         if one_up_label:
             one_up_label.hidden = not blink_state
-    
+
+    # now = time.monotonic()
+    # print(f"pellete blink took: {now - prev_time}")
+    # prev_time = now
+
     # Update score display
     if score_label:
         score_label.text = str(score) if score > 0 else "00"
-    
+
+    # now = time.monotonic()
+    # print(f"update score took: {now - prev_time}")
+    # prev_time = now
+
+    # now = time.monotonic()
+    # print(f"total frame took: {now - start_time}")
+    # prev_time = now
+
     # Frame timing
     elapsed = time.monotonic() - start_time
     if elapsed < FRAME_DELAY:

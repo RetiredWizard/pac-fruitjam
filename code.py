@@ -33,15 +33,15 @@ except ImportError:
 # =============================================================================
 
 # Screen dimensions (Fruit Jam native)
-SCREEN_WIDTH = 640
-SCREEN_HEIGHT = 480
+SCREEN_WIDTH = 320
+SCREEN_HEIGHT = 240
 
 # Game area dimensions (from sprite sheet)
 GAME_WIDTH = 224
 GAME_HEIGHT = 248
 
 # Scale factor for display (2x looks good on 640x480)
-SCALE = 2
+SCALE = 1
 SCALED_GAME_WIDTH = GAME_WIDTH * SCALE
 SCALED_GAME_HEIGHT = GAME_HEIGHT * SCALE
 
@@ -179,7 +179,7 @@ class SNESController:
         self.button_select = False
         self.button_l = False
         self.button_r = False
-        self.buf = array.array("B", [0] * 64)
+        self.buf = array.array("B", [0] * 8)
         self.idle_state = None
         self._find_controller()
     
@@ -210,7 +210,7 @@ class SNESController:
             return
         
         try:
-            count = self.device.read(0x81, self.buf)
+            count = self.device.read(0x81, self.buf, timeout=10)
             
             # Capture idle state on first read
             if self.idle_state is None:
@@ -504,7 +504,7 @@ displayio.release_displays()
 print("Initializing DVI display...")
 try:
     # Initialize Fruit Jam display (640x480 DVI)
-    request_display_config(640, 480)
+    request_display_config(SCREEN_WIDTH, SCREEN_HEIGHT)
     display = supervisor.runtime.display
     print(f"Display: {display.width}x{display.height}")
 except Exception as e:
@@ -1421,7 +1421,10 @@ while True:
     
     # Update controller
     controller.update()
-    
+    # now = time.monotonic()
+    # print(f"controller update took: {now - start_time}")
+    # prev_time = now
+
     if game_state == STATE_READY:
         ready_timer += 1
         if ready_timer >= 120:  # ~2 seconds
@@ -1431,6 +1434,9 @@ while True:
             last_mode_time = time.monotonic()
     
     elif game_state == STATE_PLAY:
+        # play_state_start = time.monotonic()
+        # prev_time = None
+
         # Mode switching
         if mode_index < len(MODE_TIMES):
             if time.monotonic() - last_mode_time > MODE_TIMES[mode_index]:
@@ -1442,14 +1448,26 @@ while True:
                         g.mode = current_mode
                         if not g.in_house:
                             g.reverse_pending = True
-        
+
+        # now = time.monotonic()
+        # prev_time = now
+        # print(f"mode switching took: {now - play_state_start}")
+
         # Read input
         direction = controller.get_direction()
         if direction != DIR_NONE:
             pacman.next_direction = direction
-        
+
+        # now = time.monotonic()
+        # print(f"read input took: {now - prev_time}")
+        # prev_time = now
+
         pacman.update()
-        
+
+        # now = time.monotonic()
+        # print(f"pacman update took: {now - prev_time}")
+        # prev_time = now
+
         # Eat dots
         if pacman.at_tile_center():
             sound.stop()
@@ -1480,7 +1498,11 @@ while True:
                             g.frightened_timer = 0
                             if not g.in_house:
                                 g.reverse_pending = True
-        
+
+        # now = time.monotonic()
+        # print(f"eat dots took: {now - prev_time}")
+        # prev_time = now
+
         # Update ghosts
         for ghost in ghosts:
             if ghost.mode == MODE_FRIGHTENED:
@@ -1527,7 +1549,11 @@ while True:
                         g.sprite.hidden = True
                     time.sleep(1.0)
                     break
-        
+
+        # now = time.monotonic()
+        # print(f"update ghosts took: {now - prev_time}")
+        # prev_time = now
+
         # Bonus fruit
         if bonus_fruit_active:
             bonus_fruit_timer += 1
@@ -1544,13 +1570,21 @@ while True:
                     sound.play_eat_ghost()
                     bonus_fruit_active = False
                     bonus_fruit.hidden = True
-        
+
+        # now = time.monotonic()
+        # print(f"bonus_fruit took: {now - prev_time}")
+        # prev_time = now
+
         # Level complete
         if dots_eaten >= TOTAL_DOTS:
             sound.stop()
             game_state = STATE_LEVEL_COMPLETE
             level_complete_timer = 0
-    
+
+        # now = time.monotonic()
+        # print(f"level complete check took: {now - prev_time}")
+        # prev_time = now
+
     elif game_state == STATE_DYING:
         death_timer += 1
         if death_timer >= 8:
@@ -1655,11 +1689,23 @@ while True:
             cover.hidden = blink_state
         if one_up_label:
             one_up_label.hidden = not blink_state
-    
+
+    # now = time.monotonic()
+    # print(f"pellete blink took: {now - prev_time}")
+    # prev_time = now
+
     # Update score display
     if score_label:
         score_label.text = str(score) if score > 0 else "00"
-    
+
+    # now = time.monotonic()
+    # print(f"update score took: {now - prev_time}")
+    # prev_time = now
+
+    # now = time.monotonic()
+    # print(f"total frame took: {now - start_time}")
+    # prev_time = now
+
     # Frame timing
     elapsed = time.monotonic() - start_time
     if elapsed < FRAME_DELAY:

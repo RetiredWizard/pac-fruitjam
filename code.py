@@ -189,7 +189,7 @@ class SNESController:
         self.button_select = False
         self.button_l = False
         self.button_r = False
-        self.buf = array.array("B", [0] * 16)
+        self.buf = array.array("B", [0] * 8)
         self.idle_state = None
         self.endpoint_address = None
         self._find_controller()
@@ -294,7 +294,7 @@ class JOYSTICKController:
         self.button_2 = False
         self.button_3 = False
         self.button_start = False
-        self.buf = array.array("B", [0] * 64)
+        self.buf = array.array("B", [0] * 16)
         self.endpoint_address = None
         self._find_controller()
         self.DEADZONE = 200 

@@ -1,7 +1,0 @@
-{
-  "terminal.integrated.defaultProfile.linux": "bash",
-  "python.languageServer": "Pylance",
-  "python.analysis.diagnosticSeverityOverrides": {
-    "reportMissingModuleSource": "none"
-  },
-}

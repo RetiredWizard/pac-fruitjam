@@ -3,6 +3,7 @@ Pac-Man Clone for Adafruit Fruit Jam
 CircuitPython - 640x480 display, SNES USB controller, I2S audio
 """
 
+import sys
 import board
 import displayio
 import gc
@@ -12,14 +13,18 @@ import os
 import audiobusio
 import supervisor
 import synthio
-import array
 import math
-import digitalio
 from adafruit_fruitjam.peripherals import Peripherals
 from adafruit_fruitjam.peripherals import request_display_config
+import relic_usb_host_gamepad
 
-# USB Host for SNES controller
-import usb.core
+# get Fruit Jam OS config if available
+try:
+    import launcher_config
+    config = launcher_config.LauncherConfig()
+except ImportError:
+    config = None
+
 
 try:
     from adafruit_bitmap_font import bitmap_font
@@ -41,7 +46,7 @@ GAME_WIDTH = 224
 GAME_HEIGHT = 248
 
 # Scale factor for display (2x looks good on 640x480)
-SCALE = 1
+SCALE = round(SCREEN_WIDTH / 320)
 SCALED_GAME_WIDTH = GAME_WIDTH * SCALE
 SCALED_GAME_HEIGHT = GAME_HEIGHT * SCALE
 
@@ -58,9 +63,9 @@ MAZE_COLS = 28
 MAZE_ROWS = 31
 
 # Movement speeds (pixels per frame at game resolution)
-PACMAN_SPEED = 2.3  #$ was 1.3
-GHOST_SPEED = 2.22  # was 1.22
-FRAME_DELAY = 0.001  # ~60 FPS target  was 0.016
+PACMAN_SPEED = 1.3  #$ was 1.3
+GHOST_SPEED = 1.22  # was 1.22
+FRAME_DELAY = 0.016  # ~60 FPS target  was 0.016
 
 # Directions
 DIR_NONE = 0
@@ -109,7 +114,7 @@ FRUIT_LEVELS = [
 ]
 
 # High score file path
-HIGH_SCORE_FILE = "/SAVES/highscores.txt"
+HIGH_SCORE_FILE = "/saves/highscores.txt"
 
 # =============================================================================
 # MAZE DATA
@@ -152,120 +157,81 @@ MAZE_DATA = [
 POWER_PELLETS = [(1, 3), (26, 3), (1, 23), (26, 23)]
 
 # =============================================================================
-# SNES CONTROLLER CLASS
+# KEYBOARD CONTROLLER CLASS
 # =============================================================================
 
-class SNESController:
-    """USB SNES-style controller handler for Adafruit SNES controller."""
-    
-    # Button byte indices for Adafruit SNES controller
-    BTN_DPAD_UPDOWN_INDEX = 1
-    BTN_DPAD_RIGHTLEFT_INDEX = 0
-    BTN_ABXY_INDEX = 5
-    BTN_OTHER_INDEX = 6
-    
+class KEYBOARDController:
+    """Keyboard controller handler."""
+
     def __init__(self):
-        self.device = None
-        self.connected = False
-        self.dpad_up = False
-        self.dpad_down = False
-        self.dpad_left = False
-        self.dpad_right = False
-        self.button_a = False
-        self.button_b = False
-        self.button_x = False
-        self.button_y = False
-        self.button_start = False
         self.button_select = False
-        self.button_l = False
-        self.button_r = False
-        self.buf = array.array("B", [0] * 8)
-        self.idle_state = None
-        self._find_controller()
-    
-    def _find_controller(self):
-        """Find and initialize USB gamepad."""
-        try:
-            for device in usb.core.find(find_all=True):
-                try:
-                    self.device = device
-                    self.device.set_configuration()
-                    
-                    # Detach kernel driver if active
-                    if self.device.is_kernel_driver_active(0):
-                        self.device.detach_kernel_driver(0)
-                    
-                    self.connected = True
-                    print(f"Controller: {device.manufacturer} {device.product}")
-                    return
-                except Exception as e:
-                    continue
-            print("No USB controller found - use on-board buttons")
-        except Exception as e:
-            print(f"USB enumeration error: {e}")
-    
+        self.button_start = False
+        self.key_pressed = None
+
     def update(self):
-        """Read controller state."""
-        if not self.connected or not self.device:
-            return
-        
-        try:
-            count = self.device.read(0x81, self.buf, timeout=10)
-            
-            # Capture idle state on first read
-            if self.idle_state is None:
-                self.idle_state = self.buf[:]
-                return
-            
-            # Parse D-pad
-            self.dpad_up = (self.buf[self.BTN_DPAD_UPDOWN_INDEX] == 0x00)
-            self.dpad_down = (self.buf[self.BTN_DPAD_UPDOWN_INDEX] == 0xFF)
-            self.dpad_left = (self.buf[self.BTN_DPAD_RIGHTLEFT_INDEX] == 0x00)
-            self.dpad_right = (self.buf[self.BTN_DPAD_RIGHTLEFT_INDEX] == 0xFF)
-            
-            # Parse ABXY buttons
-            abxy = self.buf[self.BTN_ABXY_INDEX]
-            self.button_a = (abxy == 0x2F)
-            self.button_b = (abxy == 0x4F)
-            self.button_x = (abxy == 0x1F)
-            self.button_y = (abxy == 0x8F)
-            
-            # Parse other buttons
-            other = self.buf[self.BTN_OTHER_INDEX]
-            self.button_l = (other == 0x01)
-            self.button_r = (other == 0x02)
-            self.button_select = (other == 0x10)
-            self.button_start = (other == 0x20)
-            
-        except usb.core.USBTimeoutError:
-            pass
-        except usb.core.USBError as e:
-            if "disconnected" in str(e).lower():
-                self.connected = False
-                print("Controller disconnected")
-    
-    def is_connected(self):
-        return self.connected
-    
+        """Read joystick state."""
+        if supervisor.runtime.serial_bytes_available:
+            self.key_pressed = sys.stdin.read(1)
+            # Arrow keys start with escape
+            if ord(self.key_pressed) == 27 and supervisor.runtime.serial_bytes_available:
+                self.key_pressed = sys.stdin.read(1)
+                if self.key_pressed == "[" and supervisor.runtime.serial_bytes_available:
+                    self.key_pressed = sys.stdin.read(1)
+                    #                            UP  DWN  RGT  LFT
+                    if self.key_pressed not in ("A", "B", "C", "D"):
+                        self.key_pressed = None
+                else:
+                    self.key_pressed = None
+            elif ord(self.key_pressed) == 27:
+                # Escape by itself
+                self.key_pressed = "Q"
+            #                                   q,  Q, Spc, enter
+            elif ord(self.key_pressed) not in (113, 81, 32, 10):
+                self.key_pressed = None
+            else: # convert to uppercase for consistency
+                if ord(self.key_pressed) == 113:
+                    self.key_pressed = self.key_pressed.upper()
+
+            if ord(self.key_pressed) == 32:
+                self.button_select = True
+            else:
+                self.button_select = False
+
+            if ord(self.key_pressed) == 10:
+                self.button_start = True
+            else:
+                self.button_start = False
+        else:
+            self.key_pressed = None
+            self.button_start = False
+            self.button_select = False
+
     def get_direction(self):
-        """Get current D-pad direction."""
-        if self.dpad_up:
+        """Get direction."""
+
+        # Clear buffer in case keys are being held down, this improves the
+        # chance that when an update is called it's got a recent value
+        while supervisor.runtime.serial_bytes_available:
+            sys.stdin.read(1)
+
+        if self.key_pressed == "A":
             return DIR_UP
-        if self.dpad_down:
+        if self.key_pressed == "B":
             return DIR_DOWN
-        if self.dpad_left:
-            return DIR_LEFT
-        if self.dpad_right:
+        if self.key_pressed == "C":
             return DIR_RIGHT
+        if self.key_pressed == "D":
+            return DIR_LEFT
         return DIR_NONE
-    
+
     def is_start_pressed(self):
         return self.button_start
-    
+
     def is_any_pressed(self):
-        return (self.dpad_up or self.dpad_down or self.dpad_left or self.dpad_right or
-                self.button_a or self.button_b or self.button_x or self.button_y or
-                self.button_start or self.button_select)
+        # Checks if the stick is moved out of center or any button is pressed
+        return (self.get_direction() != DIR_NONE or 
+                self.button_select or 
+                self.button_start)
 
 # =============================================================================
 # SOUND ENGINE (I2S + Synthio)
@@ -297,40 +263,22 @@ class SoundEngine:
             # I2S_BCLK = GPIO26 (board.I2S_BCLK)  
             # I2S_WS = GPIO27 (board.I2S_WS)
             # PERIPH_RESET = GPIO22 (board.PERIPH_RESET) - shared with ESP32-C6
-            
-            # First, reset the DAC by toggling the peripheral reset pin
-            import digitalio
-            reset_pin = digitalio.DigitalInOut(board.PERIPH_RESET)
-            reset_pin.direction = digitalio.Direction.OUTPUT
-            reset_pin.value = False
-            time.sleep(0.01)
-            reset_pin.value = True
-            time.sleep(0.1)
-            reset_pin.deinit()
+
+            peripherals = Peripherals(
+                audio_output=(config.audio_output if config is not None else "headphone"),
+                safe_volume_limit=(config.audio_volume_override_danger if config is not None else .75),
+                sample_rate=32000,
+                bit_depth=16
+            )
+            peripherals.volume = config.audio_volume if config is not None else .75            
             
             # Try to use adafruit_tlv320 library if available
-            try:
-                from adafruit_tlv320 import TLV320DAC3100
-                import busio
-                
-                # Initialize I2C for DAC configuration
-                i2c = busio.I2C(board.SCL, board.SDA)
-                self.dac = TLV320DAC3100(i2c)
-                
-                # Configure DAC for speaker output
-                self.dac.configure_clocks()
-                self.dac.speaker_volume = -10  # dB
-                self.dac.speaker_enabled = True
-                
+            if peripherals.dac is not None:
                 # Create I2S output
-                self.audio = audiobusio.I2SOut(
-                    board.I2S_BCLK,  # Remove "bit_clock=" - make it positional
-                    board.I2S_WS,
-                    board.I2S_DIN
-                )
+                self.audio = peripherals.audio
                 print("TLV320DAC3100 audio initialized with library")
                 
-            except ImportError:
+            else:
                 # Fallback: try basic I2S without DAC library
                 print("TLV320 library not found, trying basic I2S")
                 self.audio = audiobusio.I2SOut(
@@ -438,10 +386,10 @@ class HighScoreManager:
     def _ensure_directory(self):
         """Ensure SAVES directory exists."""
         try:
-            os.listdir("/SAVES")
+            os.listdir("/saves")
         except OSError:
             try:
-                os.mkdir("/SAVES")
+                os.mkdir("/saves")
             except OSError:
                 pass
     
@@ -497,9 +445,6 @@ class HighScoreManager:
 # DISPLAY SETUP
 # =============================================================================
 
-# Release any existing displays
-displayio.release_displays()
-
 # Get the display from board (Fruit Jam has built-in display support)
 print("Initializing DVI display...")
 try:
@@ -530,7 +475,7 @@ main_group.append(left_panel)
 # =============================================================================
 
 try:
-    maze_file = open("/images/maze_empty.bmp", "rb")
+    maze_file = open("images/maze_empty.bmp", "rb")
     maze_bmp = displayio.OnDiskBitmap(maze_file)
     maze_palette = maze_bmp.pixel_shader
     maze_bg = displayio.TileGrid(maze_bmp, pixel_shader=maze_palette, x=0, y=0)
@@ -627,7 +572,7 @@ for tx, ty in POWER_PELLETS:
 # =============================================================================
 
 try:
-    sprite_sheet = displayio.OnDiskBitmap("/images/sprites.bmp")
+    sprite_sheet = displayio.OnDiskBitmap("images/sprites.bmp")
     sprite_palette = sprite_sheet.pixel_shader
     sprite_palette.make_transparent(0)
 except Exception as e:
@@ -664,7 +609,7 @@ class PacMan:
     def reset(self):
         self.tile_x = 14
         self.tile_y = 23
-        self.x = 106
+        self.x = 107
         self.y = 181
         self.direction = DIR_NONE
         self.next_direction = DIR_NONE
@@ -718,16 +663,19 @@ class PacMan:
         elif direction == DIR_RIGHT:
             next_x += PACMAN_SPEED
         else:
+            print(f"CAN_MOVE: Checked if could move in DIR_NONE ({direction}) direction - Returned False!")
             return False
         
-        center_x = next_x + 8
-        center_y = next_y + 8
+        center_x = next_x + TILE_SIZE
+        center_y = next_y + TILE_SIZE
         
-        if center_x < 8 or center_x > 216:
+        if center_x < 8 or center_x > (GAME_WIDTH - TILE_SIZE):
             if direction in (DIR_UP, DIR_DOWN):
+                print("CAN_MOVE: Tried to move up or down but center is too far left or right - Returned False!")
                 return False
         
-        if next_x < -8 or next_x >= GAME_WIDTH - 8:
+        if next_x < -TILE_SIZE or next_x >= (GAME_WIDTH - TILE_SIZE):
+            # Using teleport tunnel
             return True
         
         SENSOR_OFFSET = 3
@@ -743,6 +691,7 @@ class PacMan:
         tx = int(check_x // TILE_SIZE)
         ty = int(check_y // TILE_SIZE)
         
+        #print(f"CAN_MOVE: x,y: {self.x},{self.y} next_x,y: {next_x},{next_y} check_x,y: {check_x},{check_y} tx,ty: {tx},{ty}")
         if tx < 0 or tx >= MAZE_COLS:
             return ty == 14
         if ty < 0 or ty >= MAZE_ROWS:
@@ -1109,8 +1058,8 @@ class Ghost:
                 tx, ty = self.scatter_target
             elif self.mode == MODE_EATEN:
                 tx, ty = 13, 11
-                if self.tile_y == 11 and self.tile_x in (13, 14):
-                    tx, ty = 13, 14
+                if self.tile_y in (11, 12, 13) and self.tile_x in (13, 14):
+                    tx, ty = 13, self.tile_y + 3
                 if self.tile_y >= 14 and self.tile_x in (13, 14):
                     self.mode = current_mode
                     self.in_house = True
@@ -1266,8 +1215,8 @@ for i in range(5):
         sprite_sheet, pixel_shader=sprite_palette,
         width=1, height=2, tile_width=16, tile_height=8
     )
-    life_tg.x = 20 + (i * 40)
-    life_tg.y = 400
+    life_tg.x = 20 + (i * int(.06 * SCREEN_WIDTH))
+    life_tg.y = int(.83 * SCREEN_HEIGHT)
     base_tile = get_tile_index(SPRITE_LIFE[0], SPRITE_LIFE[1])
     tiles_per_row = sprite_sheet.width // 16
     life_tg[0, 0] = base_tile
@@ -1294,25 +1243,25 @@ ready_label = None
 
 try:
     if bitmap_font and label:
-        font = bitmap_font.load_font("/fonts/press_start_2p.bdf")
+        font = bitmap_font.load_font("fonts/press_start_2p.bdf")
         
-        one_up_label = label.Label(font, text="1UP", color=0xFFFFFF, x=20, y=50)
-        score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=80)
+        one_up_label = label.Label(font, text="1UP", color=0xFFFFFF, x=20, y=int(.1 * SCREEN_HEIGHT))
+        score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=int(.17 * SCREEN_HEIGHT))
         
-        hs_title = label.Label(font, text="HIGH", color=0xFFFFFF, x=20, y=150)
-        hs_title2 = label.Label(font, text="SCORE", color=0xFFFFFF, x=20, y=175)
-        high_score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=205)
+        hs_title = label.Label(font, text="HIGH", color=0xFFFFFF, x=20, y=int(.31 * SCREEN_HEIGHT))
+        hs_title2 = label.Label(font, text="SCORE", color=0xFFFFFF, x=20, y=int(.36 * SCREEN_HEIGHT))
+        high_score_label = label.Label(font, text="0", color=0xFFFFFF, x=20, y=int(.43 * SCREEN_HEIGHT))
         
-        level_label = label.Label(font, text="LVL 1", color=0xFFFF00, x=20, y=280)
+        level_label = label.Label(font, text="LVL 1", color=0xFFFF00, x=20, y=int(.58 * SCREEN_HEIGHT))
         
         game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
         game_over_label.x = OFFSET_X + 40
-        game_over_label.y = 240
+        game_over_label.y = int(.5 * SCREEN_HEIGHT)
         game_over_label.hidden = True
         
         ready_label = label.Label(font, text="READY!", color=0xFFFF00)
         ready_label.x = OFFSET_X + 80
-        ready_label.y = 260
+        ready_label.y = int(.54 * SCREEN_HEIGHT)
         ready_label.hidden = True
         
         main_group.append(one_up_label)
@@ -1330,7 +1279,18 @@ except Exception as e:
 # INITIALIZE SYSTEMS
 # =============================================================================
 
-controller = SNESController()
+# create gamepad objects for ports 1 and 2
+gamepads = [relic_usb_host_gamepad.Gamepad(i + 1, debug=False) for i in range(2)]
+controller_connected = False
+for i, controller in enumerate(gamepads):
+    controller.update()
+    if controller.connected:
+        controller.joystick_threshold = .8
+        controller_connected = True
+        break
+
+keyb_controller = KEYBOARDController()
+
 sound = SoundEngine()
 high_scores = HighScoreManager()
 
@@ -1403,7 +1363,7 @@ if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
 
 print(f"Free memory: {gc.mem_free()}")
-print("Controller:", "Connected" if controller.is_connected() else "Not found")
+print("Controller:", "Connected" if controller.connected else "Not found")
 
 # Play startup
 sound.play_startup()
@@ -1416,11 +1376,19 @@ if ready_label:
 # MAIN GAME LOOP
 # =============================================================================
 
+# Flush stdin input buffer
+while supervisor.runtime.serial_bytes_available:
+    sys.stdin.read(1)
+
 while True:
     start_time = time.monotonic()
     
     # Update controller
-    controller.update()
+    controller_input = controller.update() and controller.buttons.changed
+    # Check for keyboard input
+    if not controller_input:
+        keyb_controller.update()
+
     # now = time.monotonic()
     # print(f"controller update took: {now - start_time}")
     # prev_time = now
@@ -1454,7 +1422,22 @@ while True:
         # print(f"mode switching took: {now - play_state_start}")
 
         # Read input
-        direction = controller.get_direction()
+        direction = DIR_NONE
+        if controller_input:
+            # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
+            if controller.buttons.UP or controller.buttons.JOYSTICK_DOWN:
+                direction = DIR_UP
+            elif controller.buttons.DOWN or controller.buttons.JOYSTICK_UP:
+                direction = DIR_DOWN
+            elif controller.buttons.LEFT or controller.buttons.JOYSTICK_LEFT:
+                direction = DIR_LEFT
+            elif controller.buttons.RIGHT or controller.buttons.JOYSTICK_RIGHT:
+                direction = DIR_RIGHT
+
+        # If controller wasn't used keyboard will be checked
+        else:
+            direction = keyb_controller.get_direction()
+
         if direction != DIR_NONE:
             pacman.next_direction = direction
 
@@ -1672,7 +1655,8 @@ while True:
     
     elif game_state == STATE_GAME_OVER:
         controller.update()
-        if controller.is_any_pressed():
+        keyb_controller.update()
+        if controller.buttons.START or keyb_controller.is_any_pressed():
             reset_game()
             sound.play_startup()
             game_state = STATE_READY

@@ -131,7 +131,7 @@ The audio can be configured to use the speaker or the headphone jack and the vol
 
 launcher.conf.json `audio` Parameters:
 
-    output - "speaker" or "headphone" (defaults to headphone)
+    output - "speaker" or "headphone" (defaults to speaker)
     volume - 0.0 to 1.0 (defaults to 0.35)
     volume_override_danger - 0.0 to 1.0 (defaults to 0.75)
 

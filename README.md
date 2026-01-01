@@ -57,7 +57,7 @@ Originally forked from https://github.com/scarolan/pac-wio/tree/main by [TheKitt
   - HDMI monitor
   - Game Controller
     - Keyboard
-    - Adafruitt SNES controller clone
+    - Adafruit SNES controller clone
     - USB controllers supported by [usb_host_gamepad library](https://github.com/relic-se/CircuitPython_USB_Host_Gamepad)
   
   Optional

@@ -83,7 +83,7 @@ Copy these libraries from the [Adafruit Community Bundle](https://circuitpython.
 - `relic_usb_host_gamepad` (relic_usb_host_gamepad.mpy)
 - `relic_usb_host_descriptor_parser` (relic_usb_host_descriptor_parser.mpy)
 
-*Note: circup can be used to install the required libraries as follows:
+*Note: [circup](https://learn.adafruit.com/keep-your-circuitpython-libraries-on-devices-up-to-date-with-circup/prepare) can be used to install the required libraries as follows:
 ```
 circup install relic_usb_host_gamepad adafruit_bitmap_font adafruit_display_text
 ```

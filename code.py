@@ -1482,7 +1482,7 @@ if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
 
 print(f"Free memory: {gc.mem_free()}")
-print("Controller:", "Connected" if controller.connected else "Not found")
+print("Controller:", "Connected" if controller_connected else "Not found")
 
 # Play startup
 sound.play_startup()
@@ -1502,8 +1502,10 @@ while supervisor.runtime.serial_bytes_available:
 while True:
     start_time = time.monotonic()
 
-    # Update controller
-    controller_input = controller.update() and controller.buttons.changed
+    controller_input = False
+    if controller_connected:
+        # Update controller
+        controller_input = controller.update() and controller.buttons.changed
     # Check for keyboard input
     if not controller_input:
         keyb_controller.update()
@@ -1777,9 +1779,12 @@ while True:
                 ready_label.hidden = False
 
     elif game_state == STATE_GAME_OVER:
-        controller.update()
+        controller_START = False
+        if controller_connected:
+            controller.update()
+            controller_START = controller.buttons.START
         keyb_controller.update()
-        if controller.buttons.START or keyb_controller.is_any_pressed():
+        if controller_START or keyb_controller.is_any_pressed():
             reset_game()
             level_label.text = f"LVL {level}"
             sound.play_startup()

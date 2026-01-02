@@ -3,11 +3,22 @@ Pac-Man Clone for Adafruit Fruit Jam
 CircuitPython - 640x480 display, SNES USB controller, I2S audio
 """
 
+import os
 import sys
+
+# load included modules if we aren't installed on the root path
+if len(__file__.split("/")[:-1]) > 1:
+    lib_path = "/".join(__file__.split("/")[:-1]) + "/lib"
+    try:
+        os.stat(lib_path)
+    except:
+        pass
+    else:
+        sys.path.append(lib_path)
+
 import gc
 import time
 import random
-import os
 import json
 import board
 import displayio

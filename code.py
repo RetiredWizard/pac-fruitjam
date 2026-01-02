@@ -71,6 +71,7 @@ if (SCREEN_WIDTH := os.getenv("CIRCUITPY_DISPLAY_WIDTH")) is not None:
 else:
     SCREEN_WIDTH = 320
     SCREEN_HEIGHT = 240
+SCREEN_WIDE = (SCREEN_WIDTH / SCREEN_HEIGHT) >= 1.5
 
 # Game area dimensions (from sprite sheet)
 GAME_WIDTH = 224
@@ -81,7 +82,10 @@ SCALE = round(SCREEN_WIDTH / 320)
 
 # Offset to position game on right side of screen
 # Right side: 640 - (224*2) = 192 pixels from right edge
-OFFSET_X = SCREEN_WIDTH - GAME_WIDTH * SCALE - 16  # 176 pixels from left
+if SCREEN_WIDE:
+    OFFSET_X = (SCREEN_WIDTH - GAME_WIDTH * SCALE) // 2
+else:
+    OFFSET_X = SCREEN_WIDTH - GAME_WIDTH * SCALE - 16 * SCALE  # 176 pixels from left
 OFFSET_Y = (SCREEN_HEIGHT - GAME_HEIGHT * SCALE) // 2  # Centered vertically
 
 # Tile dimensions

@@ -14,6 +14,8 @@ import displayio
 import audiobusio
 import supervisor
 import synthio
+from adafruit_bitmap_font import bitmap_font
+from adafruit_display_text.label import Label
 from adafruit_fruitjam.peripherals import Peripherals
 from adafruit_fruitjam.peripherals import request_display_config
 import relic_usb_host_gamepad
@@ -55,12 +57,6 @@ except ImportError:
 
     config = LauncherConfig()
 
-try:
-    from adafruit_bitmap_font import bitmap_font
-    from adafruit_display_text import label
-except ImportError:
-    bitmap_font = None
-    label = None
 
 # =============================================================================
 # CONSTANTS
@@ -1335,58 +1331,47 @@ gc.collect()
 # UI LABELS
 # =============================================================================
 
-score_label = None
-high_score_label = None
-one_up_label = None
-level_label = None
-game_over_label = None
-ready_label = None
+font = bitmap_font.load_font("fonts/press_start_2p.bdf")
 
-try:
-    if bitmap_font and label:
-        font = bitmap_font.load_font("fonts/press_start_2p.bdf")
+one_up_label = Label(
+    font, text="1UP", color=0xFFFFFF, x=20, y=int(0.1 * SCREEN_HEIGHT)
+)
+score_label = Label(
+    font, text="0", color=0xFFFFFF, x=20, y=int(0.17 * SCREEN_HEIGHT)
+)
 
-        one_up_label = label.Label(
-            font, text="1UP", color=0xFFFFFF, x=20, y=int(0.1 * SCREEN_HEIGHT)
-        )
-        score_label = label.Label(
-            font, text="0", color=0xFFFFFF, x=20, y=int(0.17 * SCREEN_HEIGHT)
-        )
+hs_title = Label(
+    font, text="HIGH", color=0xFFFFFF, x=20, y=int(0.31 * SCREEN_HEIGHT)
+)
+hs_title2 = Label(
+    font, text="SCORE", color=0xFFFFFF, x=20, y=int(0.36 * SCREEN_HEIGHT)
+)
+high_score_label = Label(
+    font, text="0", color=0xFFFFFF, x=20, y=int(0.43 * SCREEN_HEIGHT)
+)
 
-        hs_title = label.Label(
-            font, text="HIGH", color=0xFFFFFF, x=20, y=int(0.31 * SCREEN_HEIGHT)
-        )
-        hs_title2 = label.Label(
-            font, text="SCORE", color=0xFFFFFF, x=20, y=int(0.36 * SCREEN_HEIGHT)
-        )
-        high_score_label = label.Label(
-            font, text="0", color=0xFFFFFF, x=20, y=int(0.43 * SCREEN_HEIGHT)
-        )
+level_label = Label(
+    font, text="LVL 1", color=0xFFFF00, x=20, y=int(0.58 * SCREEN_HEIGHT)
+)
 
-        level_label = label.Label(
-            font, text="LVL 1", color=0xFFFF00, x=20, y=int(0.58 * SCREEN_HEIGHT)
-        )
+game_over_label = Label(font, text="GAME OVER", color=0xFF0000)
+game_over_label.x = OFFSET_X + 40
+game_over_label.y = int(0.5 * SCREEN_HEIGHT)
+game_over_label.hidden = True
 
-        game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
-        game_over_label.x = OFFSET_X + 40
-        game_over_label.y = int(0.5 * SCREEN_HEIGHT)
-        game_over_label.hidden = True
+ready_label = Label(font, text="READY!", color=0xFFFF00)
+ready_label.x = OFFSET_X + 80
+ready_label.y = int(0.54 * SCREEN_HEIGHT)
+ready_label.hidden = True
 
-        ready_label = label.Label(font, text="READY!", color=0xFFFF00)
-        ready_label.x = OFFSET_X + 80
-        ready_label.y = int(0.54 * SCREEN_HEIGHT)
-        ready_label.hidden = True
-
-        main_group.append(one_up_label)
-        main_group.append(score_label)
-        main_group.append(hs_title)
-        main_group.append(hs_title2)
-        main_group.append(high_score_label)
-        main_group.append(level_label)
-        main_group.append(game_over_label)
-        main_group.append(ready_label)
-except Exception as e:
-    print(f"Label error: {e}")
+main_group.append(one_up_label)
+main_group.append(score_label)
+main_group.append(hs_title)
+main_group.append(hs_title2)
+main_group.append(high_score_label)
+main_group.append(level_label)
+main_group.append(game_over_label)
+main_group.append(ready_label)
 
 # =============================================================================
 # INITIALIZE SYSTEMS
@@ -1471,15 +1456,13 @@ def reset_game():
     update_life_display()
     update_fruit_sprite()
 
-    if game_over_label:
-        game_over_label.hidden = True
+    game_over_label.hidden = True
 
 
 update_life_display()
 update_fruit_sprite()
 
-if high_score_label:
-    high_score_label.text = str(high_scores.get_high_score())
+high_score_label.text = str(high_scores.get_high_score())
 
 print(f"Free memory: {gc.mem_free()}")
 print("Controller:", "Connected" if controller_connected else "Not found")
@@ -1488,8 +1471,7 @@ print("Controller:", "Connected" if controller_connected else "Not found")
 sound.play_startup()
 game_state = STATE_READY
 ready_timer = 0
-if ready_label:
-    ready_label.hidden = False
+ready_label.hidden = False
 
 # =============================================================================
 # MAIN GAME LOOP
@@ -1518,8 +1500,7 @@ while True:
         ready_timer += 1
         if ready_timer >= 120:  # ~2 seconds
             game_state = STATE_PLAY
-            if ready_label:
-                ready_label.hidden = True
+            ready_label.hidden = True
             last_mode_time = time.monotonic()
 
     elif game_state == STATE_PLAY:
@@ -1709,11 +1690,9 @@ while True:
                 if lives <= 0:
                     if high_scores.is_high_score(score):
                         high_scores.add_score(score, "PAC")
-                        if high_score_label:
-                            high_score_label.text = str(high_scores.get_high_score())
+                        high_score_label.text = str(high_scores.get_high_score())
 
-                    if game_over_label:
-                        game_over_label.hidden = False
+                    game_over_label.hidden = False
                     pacman.sprite.hidden = True
                     game_state = STATE_GAME_OVER
                 else:
@@ -1768,15 +1747,13 @@ while True:
             current_mode = MODE_SCATTER
             last_mode_time = time.monotonic()
 
-            if level_label:
-                level_label.text = f"LVL {level}"
+            level_label.text = f"LVL {level}"
             update_fruit_sprite()
 
             sound.play_startup()
             game_state = STATE_READY
             ready_timer = 0
-            if ready_label:
-                ready_label.hidden = False
+            ready_label.hidden = False
 
     elif game_state == STATE_GAME_OVER:
         controller_START = False
@@ -1790,8 +1767,7 @@ while True:
             sound.play_startup()
             game_state = STATE_READY
             ready_timer = 0
-            if ready_label:
-                ready_label.hidden = False
+            ready_label.hidden = False
 
     # Blink power pellets
     blink_timer += 1
@@ -1800,16 +1776,14 @@ while True:
         blink_state = not blink_state
         for cover in pellet_covers:
             cover.hidden = blink_state
-        if one_up_label:
-            one_up_label.hidden = not blink_state
+        one_up_label.hidden = not blink_state
 
     # now = time.monotonic()
     # print(f"pellete blink took: {now - prev_time}")
     # prev_time = now
 
     # Update score display
-    if score_label:
-        score_label.text = str(score) if score > 0 else "00"
+    score_label.text = str(score) if score > 0 else "00"
 
     # now = time.monotonic()
     # print(f"update score took: {now - prev_time}")

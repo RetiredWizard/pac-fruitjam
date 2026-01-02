@@ -501,7 +501,7 @@ main_group = displayio.Group()
 display.root_group = main_group
 
 # Game group with 2x scaling positioned on right side
-game_group = displayio.Group(scale=SCALE, x=OFFSET_X // SCALE, y=OFFSET_Y // SCALE)
+game_group = displayio.Group(scale=SCALE, x=OFFSET_X, y=OFFSET_Y)
 
 # Background for left side (score panel)
 left_panel_bmp = displayio.Bitmap(OFFSET_X, SCREEN_HEIGHT, 1)

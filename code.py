@@ -1368,13 +1368,13 @@ try:
         )
 
         game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
-        game_over_label.x = OFFSET_X + 40
-        game_over_label.y = int(0.5 * SCREEN_HEIGHT)
+        game_over_label.anchor_point = (0.5, 0.5)
+        game_over_label.anchored_position = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         game_over_label.hidden = True
 
         ready_label = label.Label(font, text="READY!", color=0xFFFF00)
-        ready_label.x = OFFSET_X + 80
-        ready_label.y = int(0.54 * SCREEN_HEIGHT)
+        ready_label.anchor_point = (0.5, 0.5)
+        ready_label.anchored_position = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + TILE_SIZE * SCALE * 2)
         ready_label.hidden = True
 
         main_group.append(one_up_label)

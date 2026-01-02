@@ -1392,16 +1392,9 @@ except Exception as e:
 # INITIALIZE SYSTEMS
 # =============================================================================
 
-# create gamepad objects for ports 1 and 2
-gamepads = [relic_usb_host_gamepad.Gamepad(i + 1, debug=False) for i in range(2)]
-controller_connected = False
-for i, gamepad in enumerate(gamepads):
-    gamepad.update()
-    if gamepad.connected:
-        controller = gamepad
-        controller.joystick_threshold = 0.8
-        controller_connected = True
-        break
+# create gamepad object
+gamepad = relic_usb_host_gamepad.Gamepad(debug=False)
+gamepad.joystick_threshold = 0.8
 
 keyb_controller = KEYBOARDController()
 
@@ -1482,7 +1475,6 @@ if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
 
 print(f"Free memory: {gc.mem_free()}")
-print("Controller:", "Connected" if controller_connected else "Not found")
 
 # Play startup
 sound.play_startup()
@@ -1502,13 +1494,8 @@ while supervisor.runtime.serial_bytes_available:
 while True:
     start_time = time.monotonic()
 
-    controller_input = False
-    if controller_connected:
-        # Update controller
-        controller_input = controller.update() and controller.buttons.changed
-    # Check for keyboard input
-    if not controller_input:
-        keyb_controller.update()
+    # Update gamepad state
+    gamepad.update()
 
     # now = time.monotonic()
     # print(f"controller update took: {now - start_time}")
@@ -1545,20 +1532,19 @@ while True:
         # print(f"mode switching took: {now - play_state_start}")
 
         # Read input
-        direction = DIR_NONE
-        if controller_input:
+        if gamepad.connected:
+            direction = DIR_NONE
             # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
-            if controller.buttons.UP or controller.buttons.JOYSTICK_DOWN:
+            if gamepad.buttons.UP or gamepad.buttons.JOYSTICK_DOWN:
                 direction = DIR_UP
-            elif controller.buttons.DOWN or controller.buttons.JOYSTICK_UP:
+            elif gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_UP:
                 direction = DIR_DOWN
-            elif controller.buttons.LEFT or controller.buttons.JOYSTICK_LEFT:
+            elif gamepad.buttons.LEFT or gamepad.buttons.JOYSTICK_LEFT:
                 direction = DIR_LEFT
-            elif controller.buttons.RIGHT or controller.buttons.JOYSTICK_RIGHT:
+            elif gamepad.buttons.RIGHT or gamepad.buttons.JOYSTICK_RIGHT:
                 direction = DIR_RIGHT
-
-        # If controller wasn't used keyboard will be checked
         else:
+            keyb_controller.update()
             direction = keyb_controller.get_direction()
 
         if direction != DIR_NONE:
@@ -1779,12 +1765,12 @@ while True:
                 ready_label.hidden = False
 
     elif game_state == STATE_GAME_OVER:
-        controller_START = False
-        if controller_connected:
-            controller.update()
-            controller_START = controller.buttons.START
-        keyb_controller.update()
-        if controller_START or keyb_controller.is_any_pressed():
+        if gamepad.connected:
+            start_pressed = gamepad.buttons.START
+        else:
+            keyb_controller.update()
+            start_pressed = keyb_controller.is_any_pressed()
+        if start_pressed:
             reset_game()
             level_label.text = f"LVL {level}"
             sound.play_startup()

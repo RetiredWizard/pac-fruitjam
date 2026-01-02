@@ -2,7 +2,7 @@
 
 A Pac-Man clone built for the **Adafruit Fruit Jam** using **CircuitPython 10**.
 
-![Pac-Man on Fruit Jam](images/pac-fruitjam.png)
+![Pac-Man on Fruit Jam](assets/pac-fruitjam.png)
 
 Originally forked from https://github.com/scarolan/pac-wio/tree/main by [TheKitty](https://github.com/TheKitty)
 
@@ -202,4 +202,3 @@ This project is provided for educational purposes. See [LICENSE](LICENSE) for de
 - [Seeed Studio](https://www.seeedstudio.com/) for the Wio Terminal (used with original port)
 - The [Pac-Man Dossier](https://www.gamedeveloper.com/design/the-pac-man-dossier) for detailed game mechanics documentation
 - Forked from https://github.com/scarolan/pac-wio/tree/main
-

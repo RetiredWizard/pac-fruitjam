@@ -14,8 +14,7 @@ import displayio
 import audiobusio
 import supervisor
 import synthio
-from adafruit_fruitjam.peripherals import Peripherals
-from adafruit_fruitjam.peripherals import request_display_config
+from adafruit_fruitjam.peripherals import Peripherals, request_display_config, VALID_DISPLAY_SIZES
 import relic_usb_host_gamepad
 
 # get Fruit Jam OS config if available
@@ -67,8 +66,11 @@ except ImportError:
 # =============================================================================
 
 # Screen dimensions (Fruit Jam native)
-SCREEN_WIDTH = 320
-SCREEN_HEIGHT = 240
+if (SCREEN_WIDTH := os.getenv("CIRCUITPY_DISPLAY_WIDTH")) is not None:
+    SCREEN_HEIGHT = next((h for w, h in VALID_DISPLAY_SIZES if SCREEN_WIDTH == w))
+else:
+    SCREEN_WIDTH = 320
+    SCREEN_HEIGHT = 240
 
 # Game area dimensions (from sprite sheet)
 GAME_WIDTH = 224

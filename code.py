@@ -78,13 +78,11 @@ GAME_HEIGHT = 248
 
 # Scale factor for display (2x looks good on 640x480)
 SCALE = round(SCREEN_WIDTH / 320)
-SCALED_GAME_WIDTH = GAME_WIDTH * SCALE
-SCALED_GAME_HEIGHT = GAME_HEIGHT * SCALE
 
 # Offset to position game on right side of screen
 # Right side: 640 - (224*2) = 192 pixels from right edge
-OFFSET_X = SCREEN_WIDTH - SCALED_GAME_WIDTH - 16  # 176 pixels from left
-OFFSET_Y = (SCREEN_HEIGHT - SCALED_GAME_HEIGHT) // 2  # Centered vertically
+OFFSET_X = SCREEN_WIDTH - GAME_WIDTH * SCALE - 16  # 176 pixels from left
+OFFSET_Y = (SCREEN_HEIGHT - GAME_HEIGHT * SCALE) // 2  # Centered vertically
 
 # Tile dimensions
 TILE_SIZE = 8

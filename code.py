@@ -582,13 +582,13 @@ def reset_dots():
     for y in range(MAZE_ROWS):
         for x in range(MAZE_COLS):
             if MAZE_DATA[y][x] == 0 and (x, y) in reachable:
-                is_ghost_house = (10 <= x <= 17) and (13 <= y <= 15)
-                is_ghost_door = (y == 12) and (13 <= x <= 14)
+                is_ghost_area = (7 <= x <= 20) and (9 <= y <= 19)
+                is_player_area = (y == 23) and (13 <= x <= 14)
                 is_tunnel = (y == 14) and (x < 6 or x > 21)
 
                 if (x, y) in POWER_PELLETS:
                     items_grid[x, y] = 2
-                elif not is_ghost_house and not is_ghost_door and not is_tunnel:
+                elif not is_ghost_area and not is_player_area and not is_tunnel:
                     items_grid[x, y] = 1
                 else:
                     items_grid[x, y] = 0

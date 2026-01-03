@@ -24,7 +24,7 @@ try:
 
     config = launcher_config.LauncherConfig()
     # Change default output to speaker
-    config.audio_output = config.data["audio"].get("output","speaker")
+    config.audio_output = config.data["audio"].get("output", "speaker")
 except ImportError:
     config = None
 
@@ -192,11 +192,13 @@ class SoundEngine:
 
             peripherals = Peripherals(
                 audio_output=(config.audio_output if config else "speaker"),
-                safe_volume_limit=(config.audio_volume_override_danger if config else 0.75),
+                safe_volume_limit=(
+                    config.audio_volume_override_danger if config else 0.75
+                ),
                 sample_rate=22050,
                 bit_depth=16,
             )
-            peripherals.volume = (config.audio_volume if config else 0.35)
+            peripherals.volume = config.audio_volume if config else 0.35
 
             # Try to use adafruit_tlv320 library if available
             if peripherals.dac is not None:

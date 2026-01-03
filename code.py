@@ -508,13 +508,15 @@ display.root_group = main_group
 game_group = displayio.Group(scale=SCALE, x=OFFSET_X, y=OFFSET_Y)
 
 # Background for left side (score panel)
-left_panel_bmp = displayio.Bitmap(OFFSET_X, SCREEN_HEIGHT, 1)
+left_panel_group = displayio.Group(scale=SCALE)
+main_group.append(left_panel_group)
+left_panel_bmp = displayio.Bitmap(OFFSET_X // SCALE, DISPLAY_HEIGHT // SCALE, 1)
 left_panel_palette = displayio.Palette(1)
 left_panel_palette[0] = 0x000000
-left_panel = displayio.TileGrid(
+left_panel_bg = displayio.TileGrid(
     left_panel_bmp, pixel_shader=left_panel_palette, x=0, y=0
 )
-main_group.append(left_panel)
+left_panel_group.append(left_panel_bg)
 
 # =============================================================================
 # LOAD MAZE BACKGROUND
@@ -1320,15 +1322,15 @@ for i in range(5):
         tile_width=16,
         tile_height=8,
     )
-    life_tg.x = 20 + (i * int(0.06 * SCREEN_WIDTH))
-    life_tg.y = int(0.83 * SCREEN_HEIGHT)
+    life_tg.x = 20 + (i * int(0.06 * DISPLAY_WIDTH / SCALE))
+    life_tg.y = int(0.83 * DISPLAY_HEIGHT / SCALE)
     base_tile = get_tile_index(SPRITE_LIFE[0], SPRITE_LIFE[1])
     tiles_per_row = sprite_sheet.width // 16
     life_tg[0, 0] = base_tile
     life_tg[0, 1] = base_tile + tiles_per_row
     life_tg.hidden = True
     life_sprites.append(life_tg)
-    main_group.append(life_tg)
+    left_panel_group.append(life_tg)
 
 # Add game group to main
 main_group.append(game_group)
@@ -1351,24 +1353,24 @@ try:
         font = bitmap_font.load_font("fonts/press_start_2p.bdf")
 
         one_up_label = label.Label(
-            font, text="1UP", color=0xFFFFFF, x=20, y=int(0.1 * SCREEN_HEIGHT)
+            font, text="1UP", color=0xFFFFFF, x=20, y=int(0.1 * DISPLAY_HEIGHT / SCALE)
         )
         score_label = label.Label(
-            font, text="0", color=0xFFFFFF, x=20, y=int(0.17 * SCREEN_HEIGHT)
+            font, text="0", color=0xFFFFFF, x=20, y=int(0.17 * DISPLAY_HEIGHT / SCALE)
         )
 
         hs_title = label.Label(
-            font, text="HIGH", color=0xFFFFFF, x=20, y=int(0.31 * SCREEN_HEIGHT)
+            font, text="HIGH", color=0xFFFFFF, x=20, y=int(0.31 * DISPLAY_HEIGHT / SCALE)
         )
         hs_title2 = label.Label(
-            font, text="SCORE", color=0xFFFFFF, x=20, y=int(0.36 * SCREEN_HEIGHT)
+            font, text="SCORE", color=0xFFFFFF, x=20, y=int(0.36 * DISPLAY_HEIGHT / SCALE)
         )
         high_score_label = label.Label(
-            font, text="0", color=0xFFFFFF, x=20, y=int(0.43 * SCREEN_HEIGHT)
+            font, text="0", color=0xFFFFFF, x=20, y=int(0.43 * DISPLAY_HEIGHT / SCALE)
         )
 
         level_label = label.Label(
-            font, text="LVL 1", color=0xFFFF00, x=20, y=int(0.58 * SCREEN_HEIGHT)
+            font, text="LVL 1", color=0xFFFF00, x=20, y=int(0.58 * DISPLAY_HEIGHT / SCALE)
         )
 
         game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
@@ -1384,12 +1386,12 @@ try:
         ready_label.anchored_position = game_over_label.anchored_position
         ready_label.hidden = True
 
-        main_group.append(one_up_label)
-        main_group.append(score_label)
-        main_group.append(hs_title)
-        main_group.append(hs_title2)
-        main_group.append(high_score_label)
-        main_group.append(level_label)
+        left_panel_group.append(one_up_label)
+        left_panel_group.append(score_label)
+        left_panel_group.append(hs_title)
+        left_panel_group.append(hs_title2)
+        left_panel_group.append(high_score_label)
+        left_panel_group.append(level_label)
         main_group.append(game_over_label)
         main_group.append(ready_label)
 except Exception as e:

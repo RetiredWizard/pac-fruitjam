@@ -110,7 +110,7 @@ CIRCUITPY/
     ├── maze_empty.bmp
     └── sprites.bmp
 ```
-If installing for use with Fruit Jam OS, first create a Pac_Jam folder within the `CIRCUITPY/apps` folder and then copy the entire contents of this repository to the `apps/Pac_Jam` folder on your `CIRCUITPY` drive:
+If installing for use with [Fruit Jam OS](https://learn.adafruit.com/fruit-jam-os), first create a Pac_Jam folder within the `CIRCUITPY/apps` folder and then copy the entire contents of this repository to the `apps/Pac_Jam` folder on your `CIRCUITPY` drive:
 ```
 CIRCUITPY/
 ├── lib/
@@ -149,7 +149,7 @@ example:
   },
 }
 ```
-*Note: The volume can not be set higher than the "volume_override_danger" value. It's not recommended to increase the "volume_override_danger" level unless the speaker has been tested and shown to not be over driven by the default values.
+*Note: The volume can not be set higher than the "volume_override_danger" value. It's not recommended to increase the "volume_override_danger" level unless the speaker has been tested and shown not to be over driven by the default values.
 
 ### 5. Play!
 

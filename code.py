@@ -1389,342 +1389,353 @@ if ready_label:
 while supervisor.runtime.serial_bytes_available:
     sys.stdin.read(1)
 
-while True:
-    start_time = time.monotonic()
+try:
+    while True:
+        start_time = time.monotonic()
 
-    # Read keyboard input
-    keys = []
-    if (available := supervisor.runtime.serial_bytes_available) > 0:
-        buffer = sys.stdin.read(available)
-        while buffer:
-            key = buffer[0]
-            buffer = buffer[1:]
-            if key == "\x1b" and buffer and buffer[0] == "[" and len(buffer) >= 2:
-                key += buffer[:2]
-                buffer = buffer[2:]
-            keys.append(key.upper())
+        # Read keyboard input
+        keys = []
+        if (available := supervisor.runtime.serial_bytes_available) > 0:
+            buffer = sys.stdin.read(available)
+            while buffer:
+                key = buffer[0]
+                buffer = buffer[1:]
+                if key == "\x1b" and buffer and buffer[0] == "[" and len(buffer) >= 2:
+                    key += buffer[:2]
+                    buffer = buffer[2:]
+                keys.append(key.upper())
 
-    controller_input = False
-    if controller_connected:
-        # Update controller
-        controller_input = controller.update() and controller.buttons.changed
+        controller_input = False
+        if controller_connected:
+            # Update controller
+            controller_input = controller.update() and controller.buttons.changed
 
-    # now = time.monotonic()
-    # print(f"controller update took: {now - start_time}")
-    # prev_time = now
+        # now = time.monotonic()
+        # print(f"controller update took: {now - start_time}")
+        # prev_time = now
 
-    if game_state == STATE_READY:
-        ready_timer += 1
-        if ready_timer >= 120:  # ~2 seconds
-            game_state = STATE_PLAY
-            if ready_label:
-                ready_label.hidden = True
-            last_mode_time = time.monotonic()
-
-    elif game_state == STATE_PLAY:
-        # play_state_start = time.monotonic()
-        # prev_time = None
-
-        # Mode switching
-        if mode_index < len(MODE_TIMES):
-            if time.monotonic() - last_mode_time > MODE_TIMES[mode_index]:
-                mode_index += 1
+        if game_state == STATE_READY:
+            ready_timer += 1
+            if ready_timer >= 120:  # ~2 seconds
+                game_state = STATE_PLAY
+                if ready_label:
+                    ready_label.hidden = True
                 last_mode_time = time.monotonic()
-                current_mode = (
-                    MODE_CHASE if current_mode == MODE_SCATTER else MODE_SCATTER
-                )
-                for g in ghosts:
-                    if g.mode not in (MODE_FRIGHTENED, MODE_EATEN):
-                        g.mode = current_mode
-                        if not g.in_house:
-                            g.reverse_pending = True
 
-        # now = time.monotonic()
-        # prev_time = now
-        # print(f"mode switching took: {now - play_state_start}")
+        elif game_state == STATE_PLAY:
+            # play_state_start = time.monotonic()
+            # prev_time = None
 
-        # Read input
-        direction = DIR_NONE
-        if controller_input:
-            # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
-            if controller.buttons.UP or controller.buttons.JOYSTICK_DOWN:
-                direction = DIR_UP
-            elif controller.buttons.DOWN or controller.buttons.JOYSTICK_UP:
-                direction = DIR_DOWN
-            elif controller.buttons.LEFT or controller.buttons.JOYSTICK_LEFT:
-                direction = DIR_LEFT
-            elif controller.buttons.RIGHT or controller.buttons.JOYSTICK_RIGHT:
-                direction = DIR_RIGHT
-
-        # If controller wasn't used keyboard will be checked
-        else:
-            if "\x1b[A" in keys or "W" in keys:
-                direction = DIR_UP
-            elif "\x1b[B" in keys or "S" in keys:
-                direction = DIR_DOWN
-            elif "\x1b[C" in keys or "D" in keys:
-                direction = DIR_RIGHT
-            elif "\x1b[D" in keys or "A" in keys:
-                direction = DIR_LEFT
-
-        if direction != DIR_NONE:
-            pacman.next_direction = direction
-
-        # now = time.monotonic()
-        # print(f"read input took: {now - prev_time}")
-        # prev_time = now
-
-        pacman.update()
-
-        # now = time.monotonic()
-        # print(f"pacman update took: {now - prev_time}")
-        # prev_time = now
-
-        # Eat dots
-        if pacman.at_tile_center():
-            sound.stop()
-            tx, ty = int(pacman.tile_x), int(pacman.tile_y)
-            if 0 <= tx < MAZE_COLS and 0 <= ty < MAZE_ROWS:
-                item = items_grid[tx, ty]
-                if item == 1:
-                    items_grid[tx, ty] = 0
-                    score += 10
-                    dots_eaten += 1
-                    sound.play_waka()
-
-                    if dots_eaten in (70, 170):
-                        bonus_fruit_active = True
-                        bonus_fruit_timer = 0
-                        bonus_fruit.hidden = False
-                        update_fruit_sprite()
-
-                elif item == 2:
-                    items_grid[tx, ty] = 0
-                    score += 50
-                    dots_eaten += 1
-                    sound.play_waka()
-                    ghosts_eaten_count = 0
+            # Mode switching
+            if mode_index < len(MODE_TIMES):
+                if time.monotonic() - last_mode_time > MODE_TIMES[mode_index]:
+                    mode_index += 1
+                    last_mode_time = time.monotonic()
+                    current_mode = (
+                        MODE_CHASE if current_mode == MODE_SCATTER else MODE_SCATTER
+                    )
                     for g in ghosts:
-                        if g.mode != MODE_EATEN:
-                            g.mode = MODE_FRIGHTENED
-                            g.frightened_timer = 0
+                        if g.mode not in (MODE_FRIGHTENED, MODE_EATEN):
+                            g.mode = current_mode
                             if not g.in_house:
                                 g.reverse_pending = True
 
-        # now = time.monotonic()
-        # print(f"eat dots took: {now - prev_time}")
-        # prev_time = now
+            # now = time.monotonic()
+            # prev_time = now
+            # print(f"mode switching took: {now - play_state_start}")
 
-        # Update ghosts
-        for ghost in ghosts:
-            if ghost.mode == MODE_FRIGHTENED:
-                ghost.frightened_timer += 1
-                if ghost.frightened_timer > FRIGHTENED_DURATION:
-                    ghost.mode = current_mode
+            # Read input
+            direction = DIR_NONE
+            if controller_input:
+                # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
+                if controller.buttons.UP or controller.buttons.JOYSTICK_DOWN:
+                    direction = DIR_UP
+                elif controller.buttons.DOWN or controller.buttons.JOYSTICK_UP:
+                    direction = DIR_DOWN
+                elif controller.buttons.LEFT or controller.buttons.JOYSTICK_LEFT:
+                    direction = DIR_LEFT
+                elif controller.buttons.RIGHT or controller.buttons.JOYSTICK_RIGHT:
+                    direction = DIR_RIGHT
 
-            ghost.update(pacman, ghosts, current_mode)
-
-            # Collision
-            dx = abs((pacman.x + 8) - (ghost.x + 8))
-            dy = abs((pacman.y + 8) - (ghost.y + 8))
-
-            if dx < 6 and dy < 6:
-                if ghost.mode == MODE_FRIGHTENED:
-                    sound.play_eat_ghost()
-                    points = 200 * (2**ghosts_eaten_count)
-                    score += points
-                    ghosts_eaten_count += 1
-
-                    game_state = STATE_EATING_GHOST
-                    eat_timer = 0
-                    eaten_ghost_ref = ghost
-
-                    pacman.sprite.hidden = True
-                    ghost.sprite.hidden = True
-
-                    pacman.saved_x = pacman.x
-                    pacman.saved_y = pacman.y
-                    pacman.x = ghost.x
-                    pacman.y = ghost.y
-                    pacman.update_sprite_pos()
-                    pacman.set_score_frame(min(ghosts_eaten_count - 1, 3))
-                    pacman.sprite.hidden = False
-
-                    ghost.mode = MODE_EATEN
-
-                elif ghost.mode != MODE_EATEN:
-                    sound.stop()
-                    game_state = STATE_DYING
-                    death_timer = 0
-                    death_frame_idx = 0
-                    for g in ghosts:
-                        g.sprite.hidden = True
-                    time.sleep(1.0)
-                    break
-
-        # now = time.monotonic()
-        # print(f"update ghosts took: {now - prev_time}")
-        # prev_time = now
-
-        # Bonus fruit
-        if bonus_fruit_active:
-            bonus_fruit_timer += 1
-            if bonus_fruit_timer > 500:
-                bonus_fruit_active = False
-                bonus_fruit.hidden = True
+            # If controller wasn't used keyboard will be checked
             else:
-                fx, fy = 13 * 8, 17 * 8
-                dx = abs((pacman.x + 8) - (fx + 8))
-                dy = abs((pacman.y + 8) - (fy + 8))
-                if dx < 8 and dy < 8:
-                    fruit_idx = min(level - 1, len(FRUIT_POINTS) - 1)
-                    score += FRUIT_POINTS[fruit_idx]
-                    sound.play_eat_ghost()
+                if "\x1b[A" in keys or "W" in keys:
+                    direction = DIR_UP
+                elif "\x1b[B" in keys or "S" in keys:
+                    direction = DIR_DOWN
+                elif "\x1b[C" in keys or "D" in keys:
+                    direction = DIR_RIGHT
+                elif "\x1b[D" in keys or "A" in keys:
+                    direction = DIR_LEFT
+
+            if direction != DIR_NONE:
+                pacman.next_direction = direction
+
+            # now = time.monotonic()
+            # print(f"read input took: {now - prev_time}")
+            # prev_time = now
+
+            pacman.update()
+
+            # now = time.monotonic()
+            # print(f"pacman update took: {now - prev_time}")
+            # prev_time = now
+
+            # Eat dots
+            if pacman.at_tile_center():
+                sound.stop()
+                tx, ty = int(pacman.tile_x), int(pacman.tile_y)
+                if 0 <= tx < MAZE_COLS and 0 <= ty < MAZE_ROWS:
+                    item = items_grid[tx, ty]
+                    if item == 1:
+                        items_grid[tx, ty] = 0
+                        score += 10
+                        dots_eaten += 1
+                        sound.play_waka()
+
+                        if dots_eaten in (70, 170):
+                            bonus_fruit_active = True
+                            bonus_fruit_timer = 0
+                            bonus_fruit.hidden = False
+                            update_fruit_sprite()
+
+                    elif item == 2:
+                        items_grid[tx, ty] = 0
+                        score += 50
+                        dots_eaten += 1
+                        sound.play_waka()
+                        ghosts_eaten_count = 0
+                        for g in ghosts:
+                            if g.mode != MODE_EATEN:
+                                g.mode = MODE_FRIGHTENED
+                                g.frightened_timer = 0
+                                if not g.in_house:
+                                    g.reverse_pending = True
+
+            # now = time.monotonic()
+            # print(f"eat dots took: {now - prev_time}")
+            # prev_time = now
+
+            # Update ghosts
+            for ghost in ghosts:
+                if ghost.mode == MODE_FRIGHTENED:
+                    ghost.frightened_timer += 1
+                    if ghost.frightened_timer > FRIGHTENED_DURATION:
+                        ghost.mode = current_mode
+
+                ghost.update(pacman, ghosts, current_mode)
+
+                # Collision
+                dx = abs((pacman.x + 8) - (ghost.x + 8))
+                dy = abs((pacman.y + 8) - (ghost.y + 8))
+
+                if dx < 6 and dy < 6:
+                    if ghost.mode == MODE_FRIGHTENED:
+                        sound.play_eat_ghost()
+                        points = 200 * (2**ghosts_eaten_count)
+                        score += points
+                        ghosts_eaten_count += 1
+
+                        game_state = STATE_EATING_GHOST
+                        eat_timer = 0
+                        eaten_ghost_ref = ghost
+
+                        pacman.sprite.hidden = True
+                        ghost.sprite.hidden = True
+
+                        pacman.saved_x = pacman.x
+                        pacman.saved_y = pacman.y
+                        pacman.x = ghost.x
+                        pacman.y = ghost.y
+                        pacman.update_sprite_pos()
+                        pacman.set_score_frame(min(ghosts_eaten_count - 1, 3))
+                        pacman.sprite.hidden = False
+
+                        ghost.mode = MODE_EATEN
+
+                    elif ghost.mode != MODE_EATEN:
+                        sound.stop()
+                        game_state = STATE_DYING
+                        death_timer = 0
+                        death_frame_idx = 0
+                        for g in ghosts:
+                            g.sprite.hidden = True
+                        time.sleep(1.0)
+                        break
+
+            # now = time.monotonic()
+            # print(f"update ghosts took: {now - prev_time}")
+            # prev_time = now
+
+            # Bonus fruit
+            if bonus_fruit_active:
+                bonus_fruit_timer += 1
+                if bonus_fruit_timer > 500:
                     bonus_fruit_active = False
                     bonus_fruit.hidden = True
-
-        # now = time.monotonic()
-        # print(f"bonus_fruit took: {now - prev_time}")
-        # prev_time = now
-
-        # Level complete
-        if dots_eaten >= TOTAL_DOTS:
-            sound.stop()
-            game_state = STATE_LEVEL_COMPLETE
-            level_complete_timer = 0
-
-        # now = time.monotonic()
-        # print(f"level complete check took: {now - prev_time}")
-        # prev_time = now
-
-    elif game_state == STATE_DYING:
-        death_timer += 1
-        if death_timer >= 8:
-            death_timer = 0
-            death_frame_idx += 1
-
-            if death_frame_idx < len(PacMan.DEATH_FRAMES):
-                pacman.set_death_frame(death_frame_idx)
-                sound.play_death_note(death_frame_idx)
-            else:
-                sound.stop()
-                time.sleep(1.0)
-                lives -= 1
-                update_life_display()
-
-                if lives <= 0:
-                    if high_scores.is_high_score(score):
-                        high_scores.add_score(score, "PAC")
-                        if high_score_label:
-                            high_score_label.text = str(high_scores.get_high_score())
-
-                    if game_over_label:
-                        game_over_label.hidden = False
-                    pacman.sprite.hidden = True
-                    game_state = STATE_GAME_OVER
                 else:
-                    pacman.reset()
-                    for g in ghosts:
-                        g.reset()
-                        g.sprite.hidden = False
-                    mode_index = 0
-                    current_mode = MODE_SCATTER
-                    last_mode_time = time.monotonic()
-                    game_state = STATE_PLAY
+                    fx, fy = 13 * 8, 17 * 8
+                    dx = abs((pacman.x + 8) - (fx + 8))
+                    dy = abs((pacman.y + 8) - (fy + 8))
+                    if dx < 8 and dy < 8:
+                        fruit_idx = min(level - 1, len(FRUIT_POINTS) - 1)
+                        score += FRUIT_POINTS[fruit_idx]
+                        sound.play_eat_ghost()
+                        bonus_fruit_active = False
+                        bonus_fruit.hidden = True
 
-    elif game_state == STATE_EATING_GHOST:
-        eat_timer += 1
-        if eat_timer >= 60:
-            game_state = STATE_PLAY
-            pacman.sprite.hidden = False
-            pacman.set_frame(pacman.direction, 0)
-            pacman.x = pacman.saved_x
-            pacman.y = pacman.saved_y
-            pacman.update_sprite_pos()
-            if eaten_ghost_ref:
-                eaten_ghost_ref.sprite.hidden = False
-                eaten_ghost_ref.set_frame(eaten_ghost_ref.direction, 0)
+            # now = time.monotonic()
+            # print(f"bonus_fruit took: {now - prev_time}")
+            # prev_time = now
 
-    elif game_state == STATE_LEVEL_COMPLETE:
-        level_complete_timer += 1
-        if level_complete_timer % 15 == 0:
-            try:
-                maze_palette[1] = (
-                    0xFFFFFF if (level_complete_timer // 15) % 2 else 0x2121DE
-                )
-            except:
-                pass
+            # Level complete
+            if dots_eaten >= TOTAL_DOTS:
+                sound.stop()
+                game_state = STATE_LEVEL_COMPLETE
+                level_complete_timer = 0
 
-        if level_complete_timer >= 180:
-            try:
-                maze_palette[1] = 0x2121DE
-            except:
-                pass
+            # now = time.monotonic()
+            # print(f"level complete check took: {now - prev_time}")
+            # prev_time = now
 
-            level += 1
-            dots_eaten = 0
-            reset_dots()
-            pacman.reset()
-            for g in ghosts:
-                g.reset()
-                g.sprite.hidden = False
-            bonus_fruit.hidden = True
-            bonus_fruit_active = False
-            mode_index = 0
-            current_mode = MODE_SCATTER
-            last_mode_time = time.monotonic()
+        elif game_state == STATE_DYING:
+            death_timer += 1
+            if death_timer >= 8:
+                death_timer = 0
+                death_frame_idx += 1
 
-            if level_label:
+                if death_frame_idx < len(PacMan.DEATH_FRAMES):
+                    pacman.set_death_frame(death_frame_idx)
+                    sound.play_death_note(death_frame_idx)
+                else:
+                    sound.stop()
+                    time.sleep(1.0)
+                    lives -= 1
+                    update_life_display()
+
+                    if lives <= 0:
+                        if high_scores.is_high_score(score):
+                            high_scores.add_score(score, "PAC")
+                            if high_score_label:
+                                high_score_label.text = str(high_scores.get_high_score())
+
+                        if game_over_label:
+                            game_over_label.hidden = False
+                        pacman.sprite.hidden = True
+                        game_state = STATE_GAME_OVER
+                    else:
+                        pacman.reset()
+                        for g in ghosts:
+                            g.reset()
+                            g.sprite.hidden = False
+                        mode_index = 0
+                        current_mode = MODE_SCATTER
+                        last_mode_time = time.monotonic()
+                        game_state = STATE_PLAY
+
+        elif game_state == STATE_EATING_GHOST:
+            eat_timer += 1
+            if eat_timer >= 60:
+                game_state = STATE_PLAY
+                pacman.sprite.hidden = False
+                pacman.set_frame(pacman.direction, 0)
+                pacman.x = pacman.saved_x
+                pacman.y = pacman.saved_y
+                pacman.update_sprite_pos()
+                if eaten_ghost_ref:
+                    eaten_ghost_ref.sprite.hidden = False
+                    eaten_ghost_ref.set_frame(eaten_ghost_ref.direction, 0)
+
+        elif game_state == STATE_LEVEL_COMPLETE:
+            level_complete_timer += 1
+            if level_complete_timer % 15 == 0:
+                try:
+                    maze_palette[1] = (
+                        0xFFFFFF if (level_complete_timer // 15) % 2 else 0x2121DE
+                    )
+                except:
+                    pass
+
+            if level_complete_timer >= 180:
+                try:
+                    maze_palette[1] = 0x2121DE
+                except:
+                    pass
+
+                level += 1
+                dots_eaten = 0
+                reset_dots()
+                pacman.reset()
+                for g in ghosts:
+                    g.reset()
+                    g.sprite.hidden = False
+                bonus_fruit.hidden = True
+                bonus_fruit_active = False
+                mode_index = 0
+                current_mode = MODE_SCATTER
+                last_mode_time = time.monotonic()
+
+                if level_label:
+                    level_label.text = f"LVL {level}"
+                update_fruit_sprite()
+
+                sound.play_startup()
+                game_state = STATE_READY
+                ready_timer = 0
+                if ready_label:
+                    ready_label.hidden = False
+
+        elif game_state == STATE_GAME_OVER:
+            controller_START = False
+            if controller_connected:
+                controller.update()
+                controller_START = controller.buttons.START
+            if controller_START or len(keys) > 0:
+                reset_game()
                 level_label.text = f"LVL {level}"
-            update_fruit_sprite()
+                sound.play_startup()
+                game_state = STATE_READY
+                ready_timer = 0
+                if ready_label:
+                    ready_label.hidden = False
 
-            sound.play_startup()
-            game_state = STATE_READY
-            ready_timer = 0
-            if ready_label:
-                ready_label.hidden = False
+        # Blink power pellets
+        blink_timer += 1
+        if blink_timer >= 15:
+            blink_timer = 0
+            blink_state = not blink_state
+            for cover in pellet_covers:
+                cover.hidden = blink_state
+            if one_up_label:
+                one_up_label.hidden = not blink_state
 
-    elif game_state == STATE_GAME_OVER:
-        controller_START = False
-        if controller_connected:
-            controller.update()
-            controller_START = controller.buttons.START
-        if controller_START or len(keys) > 0:
-            reset_game()
-            level_label.text = f"LVL {level}"
-            sound.play_startup()
-            game_state = STATE_READY
-            ready_timer = 0
-            if ready_label:
-                ready_label.hidden = False
+        # now = time.monotonic()
+        # print(f"pellete blink took: {now - prev_time}")
+        # prev_time = now
 
-    # Blink power pellets
-    blink_timer += 1
-    if blink_timer >= 15:
-        blink_timer = 0
-        blink_state = not blink_state
-        for cover in pellet_covers:
-            cover.hidden = blink_state
-        if one_up_label:
-            one_up_label.hidden = not blink_state
+        # Update score display
+        if score_label:
+            score_label.text = str(score) if score > 0 else "00"
 
-    # now = time.monotonic()
-    # print(f"pellete blink took: {now - prev_time}")
-    # prev_time = now
+        # now = time.monotonic()
+        # print(f"update score took: {now - prev_time}")
+        # prev_time = now
 
-    # Update score display
-    if score_label:
-        score_label.text = str(score) if score > 0 else "00"
+        # now = time.monotonic()
+        # print(f"total frame took: {now - start_time}")
+        # prev_time = now
 
-    # now = time.monotonic()
-    # print(f"update score took: {now - prev_time}")
-    # prev_time = now
+        # Frame timing
+        elapsed = time.monotonic() - start_time
+        if elapsed < FRAME_DELAY:
+            time.sleep(FRAME_DELAY - elapsed)
 
-    # now = time.monotonic()
-    # print(f"total frame took: {now - start_time}")
-    # prev_time = now
+except KeyboardInterrupt:  # Ctrl+C was pressed
+    pass
 
-    # Frame timing
-    elapsed = time.monotonic() - start_time
-    if elapsed < FRAME_DELAY:
-        time.sleep(FRAME_DELAY - elapsed)
+finally:
+    # Clean up
+    if high_scores.is_high_score(score):  # save high score
+        high_scores.add_score(score, "PAC")
+    sound.deinit()  # stop audio and deinit dac
+    gamepad.disconnect()  # release usb gamepad resources

@@ -1405,7 +1405,7 @@ try:
             break
 
         # Toggle sound
-        if "\n" in keys or "Z" in keys or gamepad.buttons.SELECT):
+        if "\n" in keys or "Z" in keys or gamepad.buttons.SELECT:
             sound.toggle()
 
         # now = time.monotonic()

@@ -26,34 +26,7 @@ try:
     # Change default output to speaker
     config.audio_output = config.data["audio"].get("output","speaker")
 except ImportError:
-
-    class LauncherConfig:
-        def __init__(self):
-            self._data = {}
-            for directory in ("/", "/sd/", "/saves/"):
-                try:
-                    if "launcher.conf.json" in os.listdir(directory):
-                        launcher_config_path = directory + "launcher.conf.json"
-                        with open(launcher_config_path, "r") as f:
-                            self._data = self._data | json.load(f)
-                except OSError:
-                    pass
-            if "audio" not in self._data:
-                self._data["audio"] = {}
-
-        @property
-        def audio_output(self) -> str:
-            return self._data["audio"].get("output", "speaker")
-
-        @property
-        def audio_volume(self) -> float:
-            return min(max(float(self._data["audio"].get("volume", 0.35)), 0.0), 1.0)
-
-        @property
-        def audio_volume_override_danger(self) -> float:
-            return float(self._data["audio"].get("volume_override_danger", 0.75))
-
-    config = LauncherConfig()
+    config = None
 
 try:
     from adafruit_bitmap_font import bitmap_font
@@ -221,12 +194,12 @@ class SoundEngine:
             # PERIPH_RESET = GPIO22 (board.PERIPH_RESET) - shared with ESP32-C6
 
             peripherals = Peripherals(
-                audio_output=config.audio_output,
-                safe_volume_limit=config.audio_volume_override_danger,
+                audio_output=(config.audio_output if config else "speaker"),
+                safe_volume_limit=(config.audio_volume_override_danger if config else 0.75),
                 sample_rate=32000,
                 bit_depth=16,
             )
-            peripherals.volume = config.audio_volume
+            peripherals.volume = (config.audio_volume if config else 0.35)
 
             # Try to use adafruit_tlv320 library if available
             if peripherals.dac is not None:

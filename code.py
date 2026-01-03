@@ -292,9 +292,6 @@ class SoundEngine:
         self.waka_freq_2 = 392  # G4
         self.waka_toggle = False
 
-        # Current playing note
-        self.current_note = None
-
     def _setup_audio(self):
         """Initialize TLV320DAC3100 I2S DAC on Fruit Jam."""
         try:
@@ -340,20 +337,17 @@ class SoundEngine:
             return
         try:
             self.stop()
-            note = synthio.Note(frequency=frequency)
-            self.synth.press(note)
-            self.current_note = note
+            self.synth.release_all_then_press(synthio.Note(frequency))
         except Exception:
             pass
 
     def stop(self):
         """Stop current sound."""
-        if self.synth and self.current_note:
+        if self.synth:
             try:
-                self.synth.release(self.current_note)
+                self.synth.release_all()
             except:
                 pass
-            self.current_note = None
 
     def play_waka(self):
         """Play the alternating waka sound."""

@@ -27,8 +27,7 @@ import supervisor
 import synthio
 from adafruit_bitmap_font import bitmap_font
 from adafruit_display_text.label import Label
-from adafruit_fruitjam.peripherals import Peripherals
-from adafruit_fruitjam.peripherals import request_display_config
+from adafruit_fruitjam.peripherals import Peripherals, request_display_config, VALID_DISPLAY_SIZES
 import relic_usb_host_gamepad
 
 # get Fruit Jam OS config if available
@@ -47,22 +46,49 @@ except ImportError:
 # =============================================================================
 
 # Screen dimensions (Fruit Jam native)
-SCREEN_WIDTH = 320
-SCREEN_HEIGHT = 240
+if (SCREEN_WIDTH := os.getenv("CIRCUITPY_DISPLAY_WIDTH")) is not None:
+    SCREEN_HEIGHT = next((h for w, h in VALID_DISPLAY_SIZES if SCREEN_WIDTH == w))
+else:
+    SCREEN_WIDTH = 320
+    SCREEN_HEIGHT = 240
+SCREEN_WIDE = (SCREEN_WIDTH / SCREEN_HEIGHT) >= 1.5
+
+# Scale factor for display (2x looks good on 640x480)
+SCORE_SCALE = GAME_SCALE = round(SCREEN_WIDTH / 320)
+
+# Force lower resolution on 4:3 displays for better performance
+if not SCREEN_WIDE and SCORE_SCALE > 1:
+    SCREEN_WIDTH //= SCORE_SCALE
+    SCREEN_HEIGHT //= SCORE_SCALE
+    SCORE_SCALE = GAME_SCALE = 1
+
+# Display dimensions
+DISPLAY_ROTATION = os.getenv("CIRCUITPY_DISPLAY_ROTATION", 0)
+DISPLAY_VERTICAL = DISPLAY_ROTATION in (90, 270)  # Tate mode / vertical orientation
+
+if SCREEN_WIDE and GAME_SCALE > 1:  # higher resolution 16:9 displays
+    GAME_SCALE = 1
+    if DISPLAY_VERTICAL:
+        SCORE_SCALE = 1
+elif SCREEN_WIDE and not DISPLAY_VERTICAL:  # force 4:3 aspect ratio if lower resolution horizontal 16:9 display
+    SCREEN_WIDTH = 320
+    SCREEN_HEIGHT = 240
+    SCREEN_WIDE = False
+
+DISPLAY_WIDTH = SCREEN_HEIGHT if DISPLAY_VERTICAL else SCREEN_WIDTH
+DISPLAY_HEIGHT = SCREEN_WIDTH if DISPLAY_VERTICAL else SCREEN_HEIGHT
 
 # Game area dimensions (from sprite sheet)
 GAME_WIDTH = 224
 GAME_HEIGHT = 248
 
-# Scale factor for display (2x looks good on 640x480)
-SCALE = round(SCREEN_WIDTH / 320)
-SCALED_GAME_WIDTH = GAME_WIDTH * SCALE
-SCALED_GAME_HEIGHT = GAME_HEIGHT * SCALE
-
 # Offset to position game on right side of screen
 # Right side: 640 - (224*2) = 192 pixels from right edge
-OFFSET_X = SCREEN_WIDTH - SCALED_GAME_WIDTH - 16  # 176 pixels from left
-OFFSET_Y = (SCREEN_HEIGHT - SCALED_GAME_HEIGHT) // 2  # Centered vertically
+if SCREEN_WIDE or DISPLAY_VERTICAL:
+    OFFSET_X = (DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE) // 2
+else:
+    OFFSET_X = DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE - 16 * GAME_SCALE  # 176 pixels from left
+OFFSET_Y = (DISPLAY_HEIGHT - GAME_HEIGHT * GAME_SCALE) // 2  # Centered vertically
 
 # Tile dimensions
 TILE_SIZE = 8
@@ -388,21 +414,27 @@ except Exception as e:
     print(f"Display init error: {e}")
 
     sys.exit()
+finally:
+    display.rotation = DISPLAY_ROTATION
 
 main_group = displayio.Group()
 display.root_group = main_group
 
 # Game group with 2x scaling positioned on right side
-game_group = displayio.Group(scale=SCALE, x=OFFSET_X // SCALE, y=OFFSET_Y // SCALE)
+game_group = displayio.Group(scale=GAME_SCALE, x=OFFSET_X, y=OFFSET_Y)
 
 # Background for left side (score panel)
-left_panel_bmp = displayio.Bitmap(OFFSET_X, SCREEN_HEIGHT, 1)
-left_panel_palette = displayio.Palette(1)
-left_panel_palette[0] = 0x000000
-left_panel = displayio.TileGrid(
-    left_panel_bmp, pixel_shader=left_panel_palette, x=0, y=0
-)
-main_group.append(left_panel)
+score_group = displayio.Group(scale=SCORE_SCALE)
+main_group.append(score_group)
+
+if not DISPLAY_VERTICAL:
+    left_panel_bmp = displayio.Bitmap(OFFSET_X // SCORE_SCALE, DISPLAY_HEIGHT // SCORE_SCALE, 1)
+    left_panel_palette = displayio.Palette(1)
+    left_panel_palette[0] = 0x000000
+    left_panel_bg = displayio.TileGrid(
+        left_panel_bmp, pixel_shader=left_panel_palette, x=0, y=0
+    )
+    score_group.append(left_panel_bg)
 
 # =============================================================================
 # LOAD MAZE BACKGROUND
@@ -1208,15 +1240,20 @@ for i in range(5):
         tile_width=16,
         tile_height=8,
     )
-    life_tg.x = 20 + (i * int(0.06 * SCREEN_WIDTH))
-    life_tg.y = int(0.83 * SCREEN_HEIGHT)
+    if DISPLAY_VERTICAL:
+        # Position at bottom left, spaced 16 pixels apart
+        life_tg.x = (OFFSET_X + 24 + (i * 16)) // SCORE_SCALE
+        life_tg.y = (OFFSET_Y + GAME_HEIGHT * GAME_SCALE + 4) // SCORE_SCALE  # Below game area
+    else:
+        life_tg.x = 20 + (i * int(0.06 * DISPLAY_WIDTH / SCORE_SCALE))
+        life_tg.y = int(0.83 * DISPLAY_HEIGHT / SCORE_SCALE)
     base_tile = get_tile_index(SPRITE_LIFE[0], SPRITE_LIFE[1])
     tiles_per_row = sprite_sheet.width // 16
     life_tg[0, 0] = base_tile
     life_tg[0, 1] = base_tile + tiles_per_row
     life_tg.hidden = True
     life_sprites.append(life_tg)
-    main_group.append(life_tg)
+    score_group.append(life_tg)
 
 # Add game group to main
 main_group.append(game_group)
@@ -1229,43 +1266,75 @@ gc.collect()
 
 font = bitmap_font.load_font("fonts/press_start_2p.bdf")
 
-one_up_label = Label(
-    font, text="1UP", color=0xFFFFFF, x=20, y=int(0.1 * SCREEN_HEIGHT)
-)
-score_label = Label(
-    font, text="0", color=0xFFFFFF, x=20, y=int(0.17 * SCREEN_HEIGHT)
+one_up_label = label.Label(
+    font, text="1UP", color=0xFFFFFF,
 )
 
-hs_title = Label(
-    font, text="HIGH", color=0xFFFFFF, x=20, y=int(0.31 * SCREEN_HEIGHT)
-)
-hs_title2 = Label(
-    font, text="SCORE", color=0xFFFFFF, x=20, y=int(0.36 * SCREEN_HEIGHT)
-)
-high_score_label = Label(
-    font, text="0", color=0xFFFFFF, x=20, y=int(0.43 * SCREEN_HEIGHT)
+score_label = label.Label(
+    font, text="0", color=0xFFFFFF,
 )
 
-level_label = Label(
-    font, text="LVL 1", color=0xFFFF00, x=20, y=int(0.58 * SCREEN_HEIGHT)
+hs_title = label.Label(
+    font, text="HIGH SCORE", color=0xFFFFFF,
+)
+high_score_label = label.Label(
+    font, text="0", color=0xFFFFFF,
 )
 
-game_over_label = Label(font, text="GAME OVER", color=0xFF0000)
-game_over_label.x = OFFSET_X + 40
-game_over_label.y = int(0.5 * SCREEN_HEIGHT)
+level_label = label.Label(
+    font, text="LVL 1", color=0xFFFF00,
+)
+
+if DISPLAY_VERTICAL:
+    one_up_label.x, one_up_label.y = 8, 8  # top left
+    score_label.x, score_label.y = 8, 24  # below 1UP
+    hs_title.anchor_point = (0.5, 0.0)
+    hs_title.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 8)  # top center
+    high_score_label.anchor_point = (0.5, 0.0)
+    high_score_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 24)  # below title
+
+    if DISPLAY_WIDTH < 240:
+        level_label.anchor_point = (0.5, 0.0)
+        level_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 40)  # below high score
+    else:
+        level_label.anchor_point = (1.0, 0.0)
+        level_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE - 8, 8)  # top right
+
+else:
+    one_up_label.x, one_up_label.y = 20, int(0.1 * DISPLAY_HEIGHT / SCORE_SCALE)
+    score_label.x, score_label.y = 20, int(0.17 * DISPLAY_HEIGHT / SCORE_SCALE)
+    high_score_label.x, high_score_label.y = 20, int(0.43 * DISPLAY_HEIGHT / SCORE_SCALE)
+    level_label.x, level_label.y = 20, int(0.58 * DISPLAY_HEIGHT / SCORE_SCALE)
+
+    hs_title.text = "HIGH"
+    hs_title.x, hs_title.y = 20, int(0.31 * DISPLAY_HEIGHT / SCORE_SCALE)
+
+    hs_title2 = label.Label(
+        font, text="SCORE", color=0xFFFFFF,
+    )
+    hs_title2.x, hs_title2.y = 20, int(0.36 * DISPLAY_HEIGHT / SCORE_SCALE)
+
+game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
+game_over_label.anchor_point = (0.5, 0.5)
+game_over_label.anchored_position = (
+    OFFSET_X + int(MAZE_COLS * TILE_SIZE * GAME_SCALE / 2),
+    OFFSET_Y + int(17.5 * TILE_SIZE * GAME_SCALE)
+)
 game_over_label.hidden = True
 
-ready_label = Label(font, text="READY!", color=0xFFFF00)
-ready_label.x = OFFSET_X + 80
-ready_label.y = int(0.54 * SCREEN_HEIGHT)
+ready_label = label.Label(font, text="READY!", color=0xFFFF00)
+ready_label.anchor_point = (0.5, 0.5)
+ready_label.anchored_position = game_over_label.anchored_position
 ready_label.hidden = True
 
-main_group.append(one_up_label)
-main_group.append(score_label)
-main_group.append(hs_title)
-main_group.append(hs_title2)
-main_group.append(high_score_label)
-main_group.append(level_label)
+score_group.append(one_up_label)
+score_group.append(score_label)
+score_group.append(hs_title)
+if not DISPLAY_VERTICAL:
+    score_group.append(hs_title2)
+score_group.append(high_score_label)
+score_group.append(level_label)
+
 main_group.append(game_over_label)
 main_group.append(ready_label)
 

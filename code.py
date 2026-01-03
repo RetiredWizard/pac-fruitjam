@@ -73,9 +73,28 @@ else:
     SCREEN_HEIGHT = 240
 SCREEN_WIDE = (SCREEN_WIDTH / SCREEN_HEIGHT) >= 1.5
 
+# Scale factor for display (2x looks good on 640x480)
+SCORE_SCALE = GAME_SCALE = round(SCREEN_WIDTH / 320)
+
+# Force lower resolution on 4:3 displays for better performance
+if not SCREEN_WIDE and SCORE_SCALE > 1:
+    SCREEN_WIDTH //= SCORE_SCALE
+    SCREEN_HEIGHT //= SCORE_SCALE
+    SCORE_SCALE = GAME_SCALE = 1
+
 # Display dimensions
 DISPLAY_ROTATION = os.getenv("CIRCUITPY_DISPLAY_ROTATION", 0)
 DISPLAY_VERTICAL = DISPLAY_ROTATION in (90, 270)  # Tate mode / vertical orientation
+
+if SCREEN_WIDE:
+    if GAME_SCALE > 1:  # higher resolution 16:9 displays
+        GAME_SCALE = 1
+        if DISPLAY_VERTICAL:
+            SCORE_SCALE = 1
+    elif not DISPLAY_VERTICAL:  # force rotation on lower resolution 16:9 displays
+        DISPLAY_ROTATION = 270
+        DISPLAY_VERTICAL = True
+
 DISPLAY_WIDTH = SCREEN_HEIGHT if DISPLAY_VERTICAL else SCREEN_WIDTH
 DISPLAY_HEIGHT = SCREEN_WIDTH if DISPLAY_VERTICAL else SCREEN_HEIGHT
 
@@ -83,16 +102,13 @@ DISPLAY_HEIGHT = SCREEN_WIDTH if DISPLAY_VERTICAL else SCREEN_HEIGHT
 GAME_WIDTH = 224
 GAME_HEIGHT = 248
 
-# Scale factor for display (2x looks good on 640x480)
-SCALE = round(SCREEN_WIDTH / 320)
-
 # Offset to position game on right side of screen
 # Right side: 640 - (224*2) = 192 pixels from right edge
 if SCREEN_WIDE or DISPLAY_VERTICAL:
-    OFFSET_X = (DISPLAY_WIDTH - GAME_WIDTH * SCALE) // 2
+    OFFSET_X = (DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE) // 2
 else:
-    OFFSET_X = DISPLAY_WIDTH - GAME_WIDTH * SCALE - 16 * SCALE  # 176 pixels from left
-OFFSET_Y = (DISPLAY_HEIGHT - GAME_HEIGHT * SCALE) // 2  # Centered vertically
+    OFFSET_X = DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE - 16 * GAME_SCALE  # 176 pixels from left
+OFFSET_Y = (DISPLAY_HEIGHT - GAME_HEIGHT * GAME_SCALE) // 2  # Centered vertically
 
 # Tile dimensions
 TILE_SIZE = 8
@@ -513,14 +529,14 @@ main_group = displayio.Group()
 display.root_group = main_group
 
 # Game group with 2x scaling positioned on right side
-game_group = displayio.Group(scale=SCALE, x=OFFSET_X, y=OFFSET_Y)
+game_group = displayio.Group(scale=GAME_SCALE, x=OFFSET_X, y=OFFSET_Y)
 
 # Background for left side (score panel)
-score_group = displayio.Group(scale=SCALE if not DISPLAY_VERTICAL else 1)
+score_group = displayio.Group(scale=SCORE_SCALE)
 main_group.append(score_group)
 
 if not DISPLAY_VERTICAL:
-    left_panel_bmp = displayio.Bitmap(OFFSET_X // SCALE, DISPLAY_HEIGHT // SCALE, 1)
+    left_panel_bmp = displayio.Bitmap(OFFSET_X // SCORE_SCALE, DISPLAY_HEIGHT // SCORE_SCALE, 1)
     left_panel_palette = displayio.Palette(1)
     left_panel_palette[0] = 0x000000
     left_panel_bg = displayio.TileGrid(
@@ -1334,11 +1350,11 @@ for i in range(5):
     )
     if DISPLAY_VERTICAL:
         # Position at bottom left, spaced 16 pixels apart
-        life_tg.x = OFFSET_X + 24 + (i * 16)
-        life_tg.y = OFFSET_Y + GAME_HEIGHT * SCALE + 4  # Below game area
+        life_tg.x = (OFFSET_X + 24 + (i * 16)) // SCORE_SCALE
+        life_tg.y = (OFFSET_Y + GAME_HEIGHT * GAME_SCALE + 4) // SCORE_SCALE  # Below game area
     else:
-        life_tg.x = 20 + (i * int(0.06 * DISPLAY_WIDTH / SCALE))
-        life_tg.y = int(0.83 * DISPLAY_HEIGHT / SCALE)
+        life_tg.x = 20 + (i * int(0.06 * DISPLAY_WIDTH / SCORE_SCALE))
+        life_tg.y = int(0.83 * DISPLAY_HEIGHT / SCORE_SCALE)
     base_tile = get_tile_index(SPRITE_LIFE[0], SPRITE_LIFE[1])
     tiles_per_row = sprite_sheet.width // 16
     life_tg[0, 0] = base_tile
@@ -1390,31 +1406,36 @@ try:
             one_up_label.x, one_up_label.y = 8, 8  # top left
             score_label.x, score_label.y = 8, 24  # below 1UP
             hs_title.anchor_point = (0.5, 0.0)
-            hs_title.anchored_position = (DISPLAY_WIDTH // 2, 8)  # top center
+            hs_title.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 8)  # top center
             high_score_label.anchor_point = (0.5, 0.0)
-            high_score_label.anchored_position = (DISPLAY_WIDTH // 2, 24)  # below title
-            level_label.anchor_point = (1.0, 0.0)
-            level_label.anchored_position = (DISPLAY_WIDTH - 8, 8)  # top right
+            high_score_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 24)  # below title
+
+            if DISPLAY_WIDTH < 240:
+                level_label.anchor_point = (0.5, 0.0)
+                level_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 40)  # below high score
+            else:
+                level_label.anchor_point = (1.0, 0.0)
+                level_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE - 8, 8)  # top right
             
         else:
-            one_up_label.x, one_up_label.y = 20, int(0.1 * DISPLAY_HEIGHT / SCALE)
-            score_label.x, score_label.y = 20, int(0.17 * DISPLAY_HEIGHT / SCALE)
-            high_score_label.x, high_score_label.y = 20, int(0.43 * DISPLAY_HEIGHT / SCALE)
-            level_label.x, level_label.y = 20, int(0.58 * DISPLAY_HEIGHT / SCALE)
+            one_up_label.x, one_up_label.y = 20, int(0.1 * DISPLAY_HEIGHT / SCORE_SCALE)
+            score_label.x, score_label.y = 20, int(0.17 * DISPLAY_HEIGHT / SCORE_SCALE)
+            high_score_label.x, high_score_label.y = 20, int(0.43 * DISPLAY_HEIGHT / SCORE_SCALE)
+            level_label.x, level_label.y = 20, int(0.58 * DISPLAY_HEIGHT / SCORE_SCALE)
 
             hs_title.text = "HIGH"
-            hs_title.x, hs_title.y = 20, int(0.31 * DISPLAY_HEIGHT / SCALE)
+            hs_title.x, hs_title.y = 20, int(0.31 * DISPLAY_HEIGHT / SCORE_SCALE)
 
             hs_title2 = label.Label(
                 font, text="SCORE", color=0xFFFFFF,
             )
-            hs_title2.x, hs_title2.y = 20, int(0.36 * DISPLAY_HEIGHT / SCALE)
+            hs_title2.x, hs_title2.y = 20, int(0.36 * DISPLAY_HEIGHT / SCORE_SCALE)
 
         game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
         game_over_label.anchor_point = (0.5, 0.5)
         game_over_label.anchored_position = (
-            OFFSET_X + int(MAZE_COLS * TILE_SIZE * SCALE / 2),
-            OFFSET_Y + int(17.5 * TILE_SIZE * SCALE)
+            OFFSET_X + int(MAZE_COLS * TILE_SIZE * GAME_SCALE / 2),
+            OFFSET_Y + int(17.5 * TILE_SIZE * GAME_SCALE)
         )
         game_over_label.hidden = True
 

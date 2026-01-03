@@ -2,7 +2,7 @@
 
 A Pac-Man clone built for the **Adafruit Fruit Jam** using **CircuitPython 10**.
 
-![Pac-Man on Fruit Jam](images/pac-fruitjam.png)
+![Pac-Man on Fruit Jam](assets/pac-fruitjam.png)
 
 Originally forked from https://github.com/scarolan/pac-wio/tree/main by [TheKitty](https://github.com/TheKitty)
 
@@ -73,6 +73,8 @@ Download and install [CircuitPython 10.x for Fruit Jam](https://circuitpython.or
 
 ### 2. Install Required Libraries
 
+> If you are using the project bundle found within the [latest release](https://github.com/RetiredWizard/pac-fruitjam/releases), this step isn't necessary.
+
 Copy these libraries from the [Adafruit CircuitPython Bundle](https://circuitpython.org/libraries) to your `CIRCUITPY/lib/` folder:
 
 - `adafruit_bitmap_font/` (folder)
@@ -89,6 +91,8 @@ circup install relic_usb_host_gamepad adafruit_bitmap_font adafruit_display_text
 ```
 
 ### 3. Copy Game Files
+
+> If you are using the project bundle, extract the zipped file and locate the folder corresponding with your version of CircuitPython (ie: "CircuitPython 10.x"). All of the files included can be copied onto your device as demonstrated below.
 
 Copy the entire contents of this repository to your `CIRCUITPY` drive:
 
@@ -153,6 +157,24 @@ If installed to the `CIRCUYITPY/` drive, the game starts automatically when you 
 
 ---
 
+## ⚙️ Building Project Bundle
+
+Ensure that you have python 3.x installed system-wide and all the prerequisite libraries installed using the following command:
+
+``` shell
+pip install circup requests
+```
+
+Download all CircuitPython libraries and package the application using the following command:
+
+``` shell
+python build/build.py
+```
+
+The project bundle should be found within `./dist` as a file called `pac-fruitjam.zip`.
+
+---
+
 ## 🎨 Technical Details
 
 ### Display
@@ -202,4 +224,3 @@ This project is provided for educational purposes. See [LICENSE](LICENSE) for de
 - [Seeed Studio](https://www.seeedstudio.com/) for the Wio Terminal (used with original port)
 - The [Pac-Man Dossier](https://www.gamedeveloper.com/design/the-pac-man-dossier) for detailed game mechanics documentation
 - Forked from https://github.com/scarolan/pac-wio/tree/main
-

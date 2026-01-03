@@ -67,7 +67,7 @@ MAZE_ROWS = 31
 # Movement speeds (pixels per frame at game resolution)
 PACMAN_SPEED = 1.3  # was 1.3
 GHOST_SPEED = 1.22  # was 1.22
-FRAME_DELAY = 0.016  # ~60 FPS target  was 0.016
+FPS = 60
 
 # Directions
 DIR_NONE = 0
@@ -381,6 +381,8 @@ except Exception as e:
     print(f"Display init error: {e}")
 
     sys.exit()
+finally:
+    display.auto_refresh = False
 
 main_group = displayio.Group()
 display.root_group = main_group
@@ -1360,6 +1362,7 @@ if high_score_label:
 print(f"Free memory: {gc.mem_free()}")
 
 # Play startup
+display.refresh()
 sound.play_startup()
 game_state = STATE_READY
 ready_timer = 0
@@ -1374,8 +1377,11 @@ if ready_label:
 while supervisor.runtime.serial_bytes_available:
     sys.stdin.read(1)
 
+# frames = 0
+# frame_timer = time.monotonic()
+
 while True:
-    start_time = time.monotonic()
+    #start_time = time.monotonic()
 
     # Read keyboard input
     keys = []
@@ -1526,6 +1532,7 @@ while True:
                     death_frame_idx = 0
                     for g in ghosts:
                         g.sprite.hidden = True
+                    display.refresh()
                     time.sleep(1.0)
                     break
 
@@ -1688,6 +1695,10 @@ while True:
     # prev_time = now
 
     # Frame timing
-    elapsed = time.monotonic() - start_time
-    if elapsed < FRAME_DELAY:
-        time.sleep(FRAME_DELAY - elapsed)
+    display.refresh(target_frames_per_second=FPS)
+
+    # frames += 1
+    # if (frame_timer_now := time.monotonic()) - frame_timer > 1.0:
+    #     print(f"fps = {frames / (frame_timer_now - frame_timer)}")
+    #     frames = 0
+    #     frame_timer = frame_timer_now

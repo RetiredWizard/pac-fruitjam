@@ -1410,6 +1410,10 @@ try:
             # Update controller
             controller_input = controller.update() and controller.buttons.changed
 
+        # Exit game loop
+        if "\x1b" in keys or "Q" in keys or (controller_connected and controller.buttons.HOME):
+            break
+
         # now = time.monotonic()
         # print(f"controller update took: {now - start_time}")
         # prev_time = now

@@ -187,90 +187,6 @@ MAZE_DATA = [
 POWER_PELLETS = [(1, 3), (26, 3), (1, 23), (26, 23)]
 # fmt: on
 
-# =============================================================================
-# KEYBOARD CONTROLLER CLASS
-# =============================================================================
-
-
-class KEYBOARDController:
-    """Keyboard controller handler."""
-
-    def __init__(self):
-        self.button_select = False
-        self.button_start = False
-        self.key_pressed = None
-
-    def update(self):
-        """Read joystick state."""
-        if supervisor.runtime.serial_bytes_available:
-            self.key_pressed = sys.stdin.read(1)
-            # Arrow keys start with escape
-            if (
-                ord(self.key_pressed) == 27
-                and supervisor.runtime.serial_bytes_available
-            ):
-                self.key_pressed = sys.stdin.read(1)
-                if (
-                    self.key_pressed == "["
-                    and supervisor.runtime.serial_bytes_available
-                ):
-                    self.key_pressed = sys.stdin.read(1)
-                    #                            UP  DWN  RGT  LFT
-                    if self.key_pressed not in ("A", "B", "C", "D"):
-                        self.key_pressed = None
-                else:
-                    self.key_pressed = None
-            elif ord(self.key_pressed) == 27:
-                # Escape by itself
-                self.key_pressed = "Q"
-            #                                   q,  Q, Spc, enter
-            elif ord(self.key_pressed) not in (113, 81, 32, 10):
-                self.key_pressed = None
-            else:  # convert to uppercase for consistency
-                if ord(self.key_pressed) == 113:
-                    self.key_pressed = self.key_pressed.upper()
-
-            if ord(self.key_pressed) == 32:
-                self.button_select = True
-            else:
-                self.button_select = False
-
-            if ord(self.key_pressed) == 10:
-                self.button_start = True
-            else:
-                self.button_start = False
-        else:
-            self.key_pressed = None
-            self.button_start = False
-            self.button_select = False
-
-    def get_direction(self):
-        """Get direction."""
-
-        # Clear buffer in case keys are being held down, this improves the
-        # chance that when an update is called it's got a recent value
-        while supervisor.runtime.serial_bytes_available:
-            sys.stdin.read(1)
-
-        if self.key_pressed == "A":
-            return DIR_UP
-        if self.key_pressed == "B":
-            return DIR_DOWN
-        if self.key_pressed == "C":
-            return DIR_RIGHT
-        if self.key_pressed == "D":
-            return DIR_LEFT
-        return DIR_NONE
-
-    def is_start_pressed(self):
-        return self.button_start
-
-    def is_any_pressed(self):
-        # Checks if the stick is moved out of center or any button is pressed
-        return (
-            self.get_direction() != DIR_NONE or self.button_select or self.button_start
-        )
-
 
 # =============================================================================
 # SOUND ENGINE (I2S + Synthio)
@@ -1403,8 +1319,6 @@ for i, gamepad in enumerate(gamepads):
         controller_connected = True
         break
 
-keyb_controller = KEYBOARDController()
-
 sound = SoundEngine()
 high_scores = HighScoreManager()
 
@@ -1502,13 +1416,22 @@ while supervisor.runtime.serial_bytes_available:
 while True:
     start_time = time.monotonic()
 
+    # Read keyboard input
+    keys = []
+    if (available := supervisor.runtime.serial_bytes_available) > 0:
+        buffer = sys.stdin.read(available)
+        while buffer:
+            key = buffer[0]
+            buffer = buffer[1:]
+            if key == "\x1b" and buffer and buffer[0] == "[" and len(buffer) >= 2:
+                key += buffer[:2]
+                buffer = buffer[2:]
+            keys.append(key.upper())
+
     controller_input = False
     if controller_connected:
         # Update controller
         controller_input = controller.update() and controller.buttons.changed
-    # Check for keyboard input
-    if not controller_input:
-        keyb_controller.update()
 
     # now = time.monotonic()
     # print(f"controller update took: {now - start_time}")
@@ -1559,7 +1482,14 @@ while True:
 
         # If controller wasn't used keyboard will be checked
         else:
-            direction = keyb_controller.get_direction()
+            if "\x1b[A" in keys or "W" in keys:
+                direction = DIR_UP
+            elif "\x1b[B" in keys or "S" in keys:
+                direction = DIR_DOWN
+            elif "\x1b[C" in keys or "D" in keys:
+                direction = DIR_RIGHT
+            elif "\x1b[D" in keys or "A" in keys:
+                direction = DIR_LEFT
 
         if direction != DIR_NONE:
             pacman.next_direction = direction
@@ -1783,8 +1713,7 @@ while True:
         if controller_connected:
             controller.update()
             controller_START = controller.buttons.START
-        keyb_controller.update()
-        if controller_START or keyb_controller.is_any_pressed():
+        if controller_START or len(keys) > 0:
             reset_game()
             level_label.text = f"LVL {level}"
             sound.play_startup()

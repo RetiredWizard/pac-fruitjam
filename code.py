@@ -171,6 +171,7 @@ class SoundEngine:
     def __init__(self):
         self.enabled = True
         self.synth = None
+        self.peripherals = None
         self.audio = None
         self.dac = None
         self._setup_audio()
@@ -189,7 +190,7 @@ class SoundEngine:
             # I2S_WS = GPIO27 (board.I2S_WS)
             # PERIPH_RESET = GPIO22 (board.PERIPH_RESET) - shared with ESP32-C6
 
-            peripherals = Peripherals(
+            self.peripherals = Peripherals(
                 audio_output=(config.audio_output if config else "speaker"),
                 safe_volume_limit=(
                     config.audio_volume_override_danger if config else 0.75
@@ -197,12 +198,12 @@ class SoundEngine:
                 sample_rate=22050,
                 bit_depth=16,
             )
-            peripherals.volume = config.audio_volume if config else 0.35
+            self.peripherals.volume = config.audio_volume if config else 0.35
 
             # Try to use adafruit_tlv320 library if available
-            if peripherals.dac is not None:
+            if self.peripherals.dac is not None:
                 # Create I2S output
-                self.audio = peripherals.audio
+                self.audio = self.peripherals.audio
                 print("TLV320DAC3100 audio initialized with library")
 
             else:
@@ -291,6 +292,13 @@ class SoundEngine:
         if not self.enabled:
             self.stop()
         return self.enabled
+    
+    def deinit(self):
+        self.stop()
+        if self.audio and (self.peripherals is None or self.peripherals.dac is None):
+            self.audio.stop()
+        if self.peripherals:
+            self.peripherals.deinit()
 
 
 # =============================================================================

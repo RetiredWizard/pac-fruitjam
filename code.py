@@ -1694,7 +1694,7 @@ try:
             if controller_connected:
                 controller.update()
                 controller_START = controller.buttons.START
-            if controller_START or len(keys) > 0:
+            if controller_START or " " in keys:
                 reset_game()
                 level_label.text = f"LVL {level}"
                 sound.play_startup()

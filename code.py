@@ -74,7 +74,8 @@ else:
 SCREEN_WIDE = (SCREEN_WIDTH / SCREEN_HEIGHT) >= 1.5
 
 # Display dimensions
-DISPLAY_VERTICAL = False  # Tate mode / vertical orientation
+DISPLAY_ROTATION = os.getenv("CIRCUITPY_DISPLAY_ROTATION", 0)
+DISPLAY_VERTICAL = DISPLAY_ROTATION in (90, 270)  # Tate mode / vertical orientation
 DISPLAY_WIDTH = SCREEN_HEIGHT if DISPLAY_VERTICAL else SCREEN_WIDTH
 DISPLAY_HEIGHT = SCREEN_WIDTH if DISPLAY_VERTICAL else SCREEN_HEIGHT
 
@@ -506,8 +507,7 @@ except Exception as e:
 
     sys.exit()
 finally:
-    if DISPLAY_VERTICAL:
-        display.rotation = 270
+    display.rotation = DISPLAY_ROTATION
 
 main_group = displayio.Group()
 display.root_group = main_group

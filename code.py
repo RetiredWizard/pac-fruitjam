@@ -1427,29 +1427,15 @@ while True:
         # print(f"mode switching took: {now - play_state_start}")
 
         # Read input
-        if gamepad.connected:
-            direction = DIR_NONE
-            # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
-            if gamepad.buttons.UP or gamepad.buttons.JOYSTICK_DOWN:
-                direction = DIR_UP
-            elif gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_UP:
-                direction = DIR_DOWN
-            elif gamepad.buttons.LEFT or gamepad.buttons.JOYSTICK_LEFT:
-                direction = DIR_LEFT
-            elif gamepad.buttons.RIGHT or gamepad.buttons.JOYSTICK_RIGHT:
-                direction = DIR_RIGHT
-        else:
-            if "\x1b[A" in keys or "W" in keys:
-                direction = DIR_UP
-            elif "\x1b[B" in keys or "S" in keys:
-                direction = DIR_DOWN
-            elif "\x1b[C" in keys or "D" in keys:
-                direction = DIR_RIGHT
-            elif "\x1b[D" in keys or "A" in keys:
-                direction = DIR_LEFT
-
-        if direction != DIR_NONE:
-            pacman.next_direction = direction
+        # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
+        if "\x1b[A" in keys or "W" in keys or gamepad.buttons.UP or gamepad.buttons.JOYSTICK_DOWN:
+            pacman.next_direction = DIR_UP
+        elif "\x1b[B" in keys or "S" in keys or gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_UP:
+            pacman.next_direction = DIR_DOWN
+        elif "\x1b[D" in keys or "A" in keys or gamepad.buttons.LEFT or gamepad.buttons.JOYSTICK_LEFT:
+            pacman.next_direction = DIR_LEFT
+        elif "\x1b[C" in keys or "D" in keys or gamepad.buttons.RIGHT or gamepad.buttons.JOYSTICK_RIGHT:
+            pacman.next_direction = DIR_RIGHT
 
         # now = time.monotonic()
         # print(f"read input took: {now - prev_time}")
@@ -1666,11 +1652,7 @@ while True:
                 ready_label.hidden = False
 
     elif game_state == STATE_GAME_OVER:
-        if gamepad.connected:
-            start_pressed = gamepad.buttons.START
-        else:
-            start_pressed = len(keys) > 0:
-        if start_pressed:
+        if len(keys) > 0 or gamepad.buttons.START:
             reset_game()
             level_label.text = f"LVL {level}"
             sound.play_startup()

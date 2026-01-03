@@ -1284,16 +1284,9 @@ except Exception as e:
 # INITIALIZE SYSTEMS
 # =============================================================================
 
-# create gamepad objects for ports 1 and 2
-gamepads = [relic_usb_host_gamepad.Gamepad(i + 1, debug=False) for i in range(2)]
-controller_connected = False
-for i, gamepad in enumerate(gamepads):
-    gamepad.update()
-    if gamepad.connected:
-        controller = gamepad
-        controller.joystick_threshold = 0.8
-        controller_connected = True
-        break
+# create gamepad object
+gamepad = relic_usb_host_gamepad.Gamepad(debug=False)
+gamepad.joystick_threshold = 0.8
 
 sound = SoundEngine()
 high_scores = HighScoreManager()
@@ -1372,7 +1365,6 @@ if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
 
 print(f"Free memory: {gc.mem_free()}")
-print("Controller:", "Connected" if controller_connected else "Not found")
 
 # Play startup
 sound.play_startup()
@@ -1405,17 +1397,15 @@ try:
                     buffer = buffer[2:]
                 keys.append(key.upper())
 
-        controller_input = False
-        if controller_connected:
-            # Update controller
-            controller_input = controller.update() and controller.buttons.changed
+        # Update gamepad state
+        gamepad.update()
 
         # Exit game loop
-        if "\x1b" in keys or "Q" in keys or (controller_connected and controller.buttons.HOME):
+        if "\x1b" in keys or "Q" in keys or gamepad.buttons.HOME:
             break
 
         # Toggle sound
-        if "\n" in keys or "Z" in keys or (controller_connected and controller.buttons.SELECT):
+        if "\n" in keys or "Z" in keys or gamepad.buttons.SELECT):
             sound.toggle()
 
         # now = time.monotonic()
@@ -1453,31 +1443,15 @@ try:
             # print(f"mode switching took: {now - play_state_start}")
 
             # Read input
-            direction = DIR_NONE
-            if controller_input:
-                # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
-                if controller.buttons.UP or controller.buttons.JOYSTICK_DOWN:
-                    direction = DIR_UP
-                elif controller.buttons.DOWN or controller.buttons.JOYSTICK_UP:
-                    direction = DIR_DOWN
-                elif controller.buttons.LEFT or controller.buttons.JOYSTICK_LEFT:
-                    direction = DIR_LEFT
-                elif controller.buttons.RIGHT or controller.buttons.JOYSTICK_RIGHT:
-                    direction = DIR_RIGHT
-
-            # If controller wasn't used keyboard will be checked
-            else:
-                if "\x1b[A" in keys or "W" in keys:
-                    direction = DIR_UP
-                elif "\x1b[B" in keys or "S" in keys:
-                    direction = DIR_DOWN
-                elif "\x1b[C" in keys or "D" in keys:
-                    direction = DIR_RIGHT
-                elif "\x1b[D" in keys or "A" in keys:
-                    direction = DIR_LEFT
-
-            if direction != DIR_NONE:
-                pacman.next_direction = direction
+            # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
+            if "\x1b[A" in keys or "W" in keys or gamepad.buttons.UP or gamepad.buttons.JOYSTICK_DOWN:
+                pacman.next_direction = DIR_UP
+            elif "\x1b[B" in keys or "S" in keys or gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_UP:
+                pacman.next_direction = DIR_DOWN
+            elif "\x1b[D" in keys or "A" in keys or gamepad.buttons.LEFT or gamepad.buttons.JOYSTICK_LEFT:
+                pacman.next_direction = DIR_LEFT
+            elif "\x1b[C" in keys or "D" in keys or gamepad.buttons.RIGHT or gamepad.buttons.JOYSTICK_RIGHT:
+                pacman.next_direction = DIR_RIGHT
 
             # now = time.monotonic()
             # print(f"read input took: {now - prev_time}")
@@ -1694,11 +1668,7 @@ try:
                     ready_label.hidden = False
 
         elif game_state == STATE_GAME_OVER:
-            controller_START = False
-            if controller_connected:
-                controller.update()
-                controller_START = controller.buttons.START
-            if controller_START or " " in keys:
+            if " " in keys or gamepad.buttons.START:
                 reset_game()
                 level_label.text = f"LVL {level}"
                 sound.play_startup()

@@ -307,7 +307,7 @@ class SoundEngine:
             peripherals = Peripherals(
                 audio_output=config.audio_output,
                 safe_volume_limit=config.audio_volume_override_danger,
-                sample_rate=32000,
+                sample_rate=22050,
                 bit_depth=16,
             )
             peripherals.volume = config.audio_volume

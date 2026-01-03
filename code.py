@@ -288,9 +288,9 @@ class SoundEngine:
 
     def toggle(self):
         """Toggle sound on/off."""
-        self.enabled = not self.enabled
-        if not self.enabled:
+        if self.enabled:
             self.stop()
+        self.enabled = not self.enabled
         return self.enabled
     
     def deinit(self):
@@ -1413,6 +1413,10 @@ try:
         # Exit game loop
         if "\x1b" in keys or "Q" in keys or (controller_connected and controller.buttons.HOME):
             break
+
+        # Toggle sound
+        if "\n" in keys or "Z" in keys or (controller_connected and controller.buttons.SELECT):
+            sound.toggle()
 
         # now = time.monotonic()
         # print(f"controller update took: {now - start_time}")

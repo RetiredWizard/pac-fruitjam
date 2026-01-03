@@ -59,14 +59,14 @@ if not SCREEN_WIDE and SCORE_SCALE > 1:
 DISPLAY_ROTATION = os.getenv("CIRCUITPY_DISPLAY_ROTATION", 0)
 DISPLAY_VERTICAL = DISPLAY_ROTATION in (90, 270)  # Tate mode / vertical orientation
 
-if SCREEN_WIDE:
-    if GAME_SCALE > 1:  # higher resolution 16:9 displays
-        GAME_SCALE = 1
-        if DISPLAY_VERTICAL:
-            SCORE_SCALE = 1
-    elif not DISPLAY_VERTICAL:  # force rotation on lower resolution 16:9 displays
-        DISPLAY_ROTATION = 270
-        DISPLAY_VERTICAL = True
+if SCREEN_WIDE and GAME_SCALE > 1:  # higher resolution 16:9 displays
+    GAME_SCALE = 1
+    if DISPLAY_VERTICAL:
+        SCORE_SCALE = 1
+elif SCREEN_WIDE and not DISPLAY_VERTICAL:  # force 4:3 aspect ratio if lower resolution horizontal 16:9 display
+    SCREEN_WIDTH = 320
+    SCREEN_HEIGHT = 240
+    SCREEN_WIDE = False
 
 DISPLAY_WIDTH = SCREEN_HEIGHT if DISPLAY_VERTICAL else SCREEN_WIDTH
 DISPLAY_HEIGHT = SCREEN_WIDTH if DISPLAY_VERTICAL else SCREEN_HEIGHT

@@ -8,7 +8,6 @@ import gc
 import time
 import random
 import os
-import json
 import board
 import displayio
 import audiobusio

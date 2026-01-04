@@ -1786,3 +1786,4 @@ finally:
         high_scores.add_score(score, "PAC")
     sound.deinit()  # stop audio and deinit dac
     gamepad.disconnect()  # release usb gamepad resources
+    supervisor.reload()  # reload or return to Fruit Jam OS

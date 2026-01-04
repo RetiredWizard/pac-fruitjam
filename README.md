@@ -22,14 +22,12 @@ Originally forked from https://github.com/scarolan/pac-wio/tree/main by [TheKitt
 
 ## 🎯 Gameplay
 
-| Control | Action |
-|---------|--------|
-| Joystick/Controller | Move Pac-Man |
-| Button 1     | Toggle Sound On/Off |
-| Start Button | Restart after Game Over |
-| Keyboard Arrows | Move Pac-Man |
-| Enter Key | Toggle Sound On/Off |
-| Space Bar | Restart after Game Over |
+| Action | Keyboard | Controller |
+|--------|----------|------------|
+| Move Pac-Man | Arrow keys / WASD | D-pad / Joystick |
+| Restart after Game Over | Space Bar | Start |
+| Toggle Sound On/Off | Z / Enter | Select |
+| Quit Game | Q / Escape | Home |
 
 ### Scoring
 | Item | Points |
@@ -202,4 +200,3 @@ This project is provided for educational purposes. See [LICENSE](LICENSE) for de
 - [Seeed Studio](https://www.seeedstudio.com/) for the Wio Terminal (used with original port)
 - The [Pac-Man Dossier](https://www.gamedeveloper.com/design/the-pac-man-dossier) for detailed game mechanics documentation
 - Forked from https://github.com/scarolan/pac-wio/tree/main
-

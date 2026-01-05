@@ -14,7 +14,7 @@ Originally forked from https://github.com/scarolan/pac-wio/tree/main by [TheKitt
 - 👻 **Four Unique Ghosts** - Blinky, Pinky, Inky, and Clyde with arcade-accurate behavior patterns
 - 🍒 **Bonus Fruits** - Cherry, strawberry, orange, apple, and more appear as you progress
 - 🔊 **Sound Effects** - Waka-waka eating sounds, death melody, and startup jingle via the built-in buzzer
-- 📊 **Scoreboard** - Arcade-style display with HIGH SCORE, lives, and current level
+- 📊 **Scoreboard** - Arcade-style display with 1UP, HIGH SCORE, lives, and current level
 - 🎨 **Custom Font** - Press Start 2P retro arcade font
 - ⚡ **Optimized Performance** - Runs smoothly on the Adafruit Fruit Jam
 

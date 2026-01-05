@@ -22,8 +22,6 @@ try:
     import launcher_config
 
     config = launcher_config.LauncherConfig()
-    # Change default output to speaker
-    config.audio_output = config.data["audio"].get("output", "speaker")
 except ImportError:
     config = None
 

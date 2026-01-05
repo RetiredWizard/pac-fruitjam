@@ -14,6 +14,7 @@ import audiobusio
 import supervisor
 import synthio
 from adafruit_fruitjam.peripherals import Peripherals, request_display_config, VALID_DISPLAY_SIZES
+import adafruit_imageload
 import relic_usb_host_gamepad
 
 # get Fruit Jam OS config if available
@@ -440,14 +441,9 @@ if not DISPLAY_VERTICAL:
 # LOAD MAZE BACKGROUND
 # =============================================================================
 
-try:
-    maze_file = open("images/maze_empty.bmp", "rb")
-    maze_bmp = displayio.OnDiskBitmap(maze_file)
-    maze_palette = maze_bmp.pixel_shader
-    maze_bg = displayio.TileGrid(maze_bmp, pixel_shader=maze_palette, x=0, y=0)
-    game_group.append(maze_bg)
-except Exception as e:
-    print(f"Error loading maze: {e}")
+maze_bmp, maze_palette = adafruit_imageload.load("images/maze_empty.bmp")
+maze_bg = displayio.TileGrid(maze_bmp, pixel_shader=maze_palette, x=0, y=0)
+game_group.append(maze_bg)
 
 # =============================================================================
 # ITEMS GRID (DOTS & POWER PELLETS)
@@ -545,14 +541,8 @@ for tx, ty in POWER_PELLETS:
 # LOAD SPRITE SHEET
 # =============================================================================
 
-try:
-    sprite_sheet = displayio.OnDiskBitmap("images/sprites.bmp")
-    sprite_palette = sprite_sheet.pixel_shader
-    sprite_palette.make_transparent(0)
-except Exception as e:
-    print(f"Error loading sprites: {e}")
-    sprite_sheet = None
-    sprite_palette = None
+sprite_sheet, sprite_palette = adafruit_imageload.load("images/sprites.bmp")
+sprite_palette.make_transparent(0)
 
 gc.collect()
 

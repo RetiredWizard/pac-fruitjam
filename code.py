@@ -1462,8 +1462,19 @@ try:
             break
 
         # Toggle sound
-        if "\n" in keys or "Z" in keys or gamepad.buttons.SELECT:
+        if "\n" in keys or "Z" in keys:
             sound.toggle()
+
+        # Handle gamepad settings combos
+        if gamepad.buttons.SELECT:
+            for event in gamepad.events:
+                if event.pressed:
+                    if event.key_number == relic_usb_host_gamepad.BUTTON_A:
+                        # SELECT+A = toggle sound
+                        sound.toggle()
+                    elif event.key_number == relic_usb_host_gamepad.BUTTON_B:
+                        # SELECT+B = toggle joystick y-axis inversion
+                        gamepad.left_stick_invert_y = not gamepad.left_stick_invert_y
 
         # now = time.monotonic()
         # print(f"controller update took: {now - start_time}")

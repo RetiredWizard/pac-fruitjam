@@ -1500,10 +1500,9 @@ try:
             # print(f"mode switching took: {now - play_state_start}")
 
             # Read input
-            # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
-            if "\x1b[A" in keys or "W" in keys or gamepad.buttons.UP or gamepad.buttons.JOYSTICK_DOWN:
+            if "\x1b[A" in keys or "W" in keys or gamepad.buttons.UP or gamepad.buttons.JOYSTICK_UP:
                 pacman.next_direction = DIR_UP
-            elif "\x1b[B" in keys or "S" in keys or gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_UP:
+            elif "\x1b[B" in keys or "S" in keys or gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_DOWN:
                 pacman.next_direction = DIR_DOWN
             elif "\x1b[D" in keys or "A" in keys or gamepad.buttons.LEFT or gamepad.buttons.JOYSTICK_LEFT:
                 pacman.next_direction = DIR_LEFT

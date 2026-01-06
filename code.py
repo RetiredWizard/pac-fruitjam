@@ -1474,7 +1474,7 @@ try:
                         sound.toggle()
                     elif event.key_number == relic_usb_host_gamepad.BUTTON_B:
                         # SELECT+B = toggle joystick y-axis inversion
-                        gamepad.left_stick_invert_y = not gamepad.left_stick_invert_y
+                        gamepad.left_joystick_invert_y = not gamepad.left_joystick_invert_y
 
         # now = time.monotonic()
         # print(f"controller update took: {now - start_time}")

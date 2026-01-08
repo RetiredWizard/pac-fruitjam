@@ -559,6 +559,13 @@ class PacMan:
         DIR_DOWN: [(0, 48), (16, 48), (32, 0)],
     }
 
+    MS_FRAMES = {
+        DIR_RIGHT: [(0, 208), (16, 208), (32, 208)],
+        DIR_LEFT: [(48, 208), (64, 208), (80, 208)],
+        DIR_UP: [(96, 208), (112, 208), (128, 208)],
+        DIR_DOWN: [(144, 208), (160, 208), (176, 208)],
+    }
+
     DEATH_FRAMES = [(48 + i * 16, 0) for i in range(11)]
     SCORE_FRAMES = [(0, 128), (16, 128), (32, 128), (48, 128)]
 
@@ -571,6 +578,7 @@ class PacMan:
             tile_width=16,
             tile_height=16,
         )
+        self.ms = False
         self.reset()
 
     def reset(self):
@@ -593,6 +601,10 @@ class PacMan:
     def set_frame(self, direction, frame_idx):
         if direction == DIR_NONE:
             direction = DIR_RIGHT
+        if self.ms:
+            frames = self.MS_FRAMES.get(direction, self.MS_FRAMES[DIR_RIGHT])
+        else:
+            frames = self.FRAMES.get(direction, self.FRAMES[DIR_RIGHT])
         self._set_tile(*frames[frame_idx % 3])
 
     def set_death_frame(self, frame_idx):
@@ -1457,6 +1469,10 @@ try:
         # Toggle sound
         if "\n" in keys or "Z" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_SELECT):
             sound.toggle()
+
+        # Toggle Ms. Pacman
+        if "M" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_X):
+            pacman.ms = not pacman.ms
 
         # now = time.monotonic()
         # print(f"controller update took: {now - start_time}")

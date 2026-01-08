@@ -567,9 +567,9 @@ class PacMan:
             sprite_sheet,
             pixel_shader=sprite_palette,
             width=1,
-            height=2,
+            height=1,
             tile_width=16,
-            tile_height=8,
+            tile_height=16,
         )
         self.reset()
 
@@ -587,33 +587,23 @@ class PacMan:
         self.set_frame(DIR_RIGHT, 0)
         self.update_sprite_pos()
 
+    def _set_tile(self, fx, fy):
+        self.sprite[0, 0] = (fy // 16) * (sprite_sheet.width // 16) + (fx // 16)
+
     def set_frame(self, direction, frame_idx):
         if direction == DIR_NONE:
             direction = DIR_RIGHT
-        frames = self.FRAMES.get(direction, self.FRAMES[DIR_RIGHT])
-        fx, fy = frames[frame_idx % 3]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
-        self.sprite[0, 0] = base_tile
-        self.sprite[0, 1] = base_tile + tiles_per_row
+        self._set_tile(*frames[frame_idx % 3])
 
     def set_death_frame(self, frame_idx):
         if frame_idx >= len(self.DEATH_FRAMES):
             frame_idx = len(self.DEATH_FRAMES) - 1
-        fx, fy = self.DEATH_FRAMES[frame_idx]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
-        self.sprite[0, 0] = base_tile
-        self.sprite[0, 1] = base_tile + tiles_per_row
+        self._set_tile(*self.DEATH_FRAMES[frame_idx])
 
     def set_score_frame(self, score_idx):
         if score_idx >= len(self.SCORE_FRAMES):
             score_idx = len(self.SCORE_FRAMES) - 1
-        fx, fy = self.SCORE_FRAMES[score_idx]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
-        self.sprite[0, 0] = base_tile
-        self.sprite[0, 1] = base_tile + tiles_per_row
+        self._set_tile(*self.SCORE_FRAMES[score_idx])
 
     def update_sprite_pos(self):
         self.sprite.x = int(self.x)

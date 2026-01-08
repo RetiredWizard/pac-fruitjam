@@ -1335,6 +1335,9 @@ except Exception as e:
 gamepad = relic_usb_host_gamepad.Gamepad(debug=False)
 gamepad.joystick_threshold = 0.8
 
+def is_button_press(*buttons: int) -> bool:
+    return (gamepad.connected and any(event.pressed and event.key_number in buttons for event in gamepad.events))
+
 sound = SoundEngine()
 high_scores = HighScoreManager()
 
@@ -1448,11 +1451,11 @@ try:
         gamepad.update()
 
         # Exit game loop
-        if "\x1b" in keys or "Q" in keys or gamepad.buttons.HOME:
+        if "\x1b" in keys or "Q" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_HOME):
             break
 
         # Toggle sound
-        if "\n" in keys or "Z" in keys or gamepad.buttons.SELECT:
+        if "\n" in keys or "Z" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_SELECT):
             sound.toggle()
 
         # now = time.monotonic()

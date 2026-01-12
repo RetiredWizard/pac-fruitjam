@@ -13,6 +13,7 @@ import displayio
 import audiobusio
 import supervisor
 import synthio
+import bitmaptools
 from adafruit_fruitjam.peripherals import Peripherals, request_display_config, VALID_DISPLAY_SIZES
 import adafruit_imageload
 import relic_usb_host_gamepad
@@ -36,6 +37,19 @@ except ImportError:
 # CONSTANTS
 # =============================================================================
 
+# Tile dimensions
+TILE_SIZE = 6
+TILE_SIZE_X_2 = TILE_SIZE * 2
+TILE_SIZE__2 = TILE_SIZE // 2
+
+# Maze dimensions in tiles
+MAZE_COLS = 28
+MAZE_ROWS = 31
+
+# Game area dimensions (from sprite sheet)
+GAME_WIDTH = MAZE_COLS * TILE_SIZE
+GAME_HEIGHT = MAZE_ROWS * TILE_SIZE
+
 # Screen dimensions (Fruit Jam native)
 if (SCREEN_WIDTH := os.getenv("CIRCUITPY_DISPLAY_WIDTH")) is not None:
     SCREEN_HEIGHT = next((h for w, h in VALID_DISPLAY_SIZES if SCREEN_WIDTH == w))
@@ -47,8 +61,8 @@ SCREEN_WIDE = (SCREEN_WIDTH / SCREEN_HEIGHT) >= 1.5
 # Scale factor for display (2x looks good on 640x480)
 SCORE_SCALE = GAME_SCALE = round(SCREEN_WIDTH / 320)
 
-# Force lower resolution on 4:3 displays for better performance
-if not SCREEN_WIDE and SCORE_SCALE > 1:
+# Force lower resolution for better performance
+if SCORE_SCALE > 1:
     SCREEN_WIDTH //= SCORE_SCALE
     SCREEN_HEIGHT //= SCORE_SCALE
     SCORE_SCALE = GAME_SCALE = 1
@@ -57,40 +71,17 @@ if not SCREEN_WIDE and SCORE_SCALE > 1:
 DISPLAY_ROTATION = os.getenv("CIRCUITPY_DISPLAY_ROTATION", 0)
 DISPLAY_VERTICAL = DISPLAY_ROTATION in (90, 270)  # Tate mode / vertical orientation
 
-if SCREEN_WIDE and GAME_SCALE > 1:  # higher resolution 16:9 displays
-    GAME_SCALE = 1
-    if DISPLAY_VERTICAL:
-        SCORE_SCALE = 1
-elif SCREEN_WIDE and not DISPLAY_VERTICAL:  # force 4:3 aspect ratio if lower resolution horizontal 16:9 display
-    SCREEN_WIDTH = 320
-    SCREEN_HEIGHT = 240
-    SCREEN_WIDE = False
-
 DISPLAY_WIDTH = SCREEN_HEIGHT if DISPLAY_VERTICAL else SCREEN_WIDTH
 DISPLAY_HEIGHT = SCREEN_WIDTH if DISPLAY_VERTICAL else SCREEN_HEIGHT
 
-# Game area dimensions (from sprite sheet)
-GAME_WIDTH = 224
-GAME_HEIGHT = 248
-
 # Offset to position game on right side of screen
 # Right side: 640 - (224*2) = 192 pixels from right edge
-if SCREEN_WIDE or DISPLAY_VERTICAL:
-    OFFSET_X = (DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE) // 2
-else:
-    OFFSET_X = DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE - 16 * GAME_SCALE  # 176 pixels from left
+OFFSET_X = (DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE) // 2
 OFFSET_Y = (DISPLAY_HEIGHT - GAME_HEIGHT * GAME_SCALE) // 2  # Centered vertically
 
-# Tile dimensions
-TILE_SIZE = 8
-
-# Maze dimensions in tiles
-MAZE_COLS = 28
-MAZE_ROWS = 31
-
 # Movement speeds (pixels per frame at game resolution)
-PACMAN_SPEED = 1.3  # was 1.3
-GHOST_SPEED = 1.22  # was 1.22
+PACMAN_SPEED = 1.3 * TILE_SIZE / 8 # was 1.3
+GHOST_SPEED = 1.22 * TILE_SIZE / 8 # was 1.22
 FRAME_DELAY = 0.016  # ~60 FPS target  was 0.016
 
 # Directions
@@ -136,11 +127,15 @@ HIGH_SCORE_FILE = "/saves/highscores.txt"
 
 # Sprite coordinates
 # fmt: off
-SPRITE_LIFE = (128, 16)
+SPRITE_LIFE = (16 * TILE_SIZE, TILE_SIZE_X_2)
 FRUIT_LEVELS = [
-    (32, 48), (48, 48), (64, 48), (64, 48),
-    (80, 48), (80, 48), (96, 48), (96, 48),
-    (112, 48), (112, 48), (128, 48), (128, 48), (144, 48)
+    (4 * TILE_SIZE, 6 * TILE_SIZE), (6 * TILE_SIZE, 6 * TILE_SIZE),
+    (8 * TILE_SIZE, 6 * TILE_SIZE), (8 * TILE_SIZE, 6 * TILE_SIZE),
+    (10 * TILE_SIZE, 6 * TILE_SIZE), (10 * TILE_SIZE, 6 * TILE_SIZE),
+    (12 * TILE_SIZE, 6 * TILE_SIZE), (12 * TILE_SIZE, 6 * TILE_SIZE),
+    (14 * TILE_SIZE, 6 * TILE_SIZE), (14 * TILE_SIZE, 6 * TILE_SIZE),
+    (16 * TILE_SIZE, 6 * TILE_SIZE), (16 * TILE_SIZE, 6 * TILE_SIZE),
+    (18 * TILE_SIZE, 6 * TILE_SIZE)
 ]
 
 # =============================================================================
@@ -439,7 +434,13 @@ if not DISPLAY_VERTICAL:
 # LOAD MAZE BACKGROUND
 # =============================================================================
 
-maze_bmp, maze_palette = adafruit_imageload.load("images/maze_empty.bmp")
+_maze_bmp, maze_palette = adafruit_imageload.load("images/maze_empty.bmp")
+if TILE_SIZE != 6:
+    maze_bmp = displayio.Bitmap(GAME_WIDTH, GAME_HEIGHT, 2 ** _maze_bmp.bits_per_value)
+    bitmaptools.rotozoom(maze_bmp, _maze_bmp, scale = TILE_SIZE / 6)
+else:
+    maze_bmp = _maze_bmp
+
 maze_bg = displayio.TileGrid(maze_bmp, pixel_shader=maze_palette, x=0, y=0)
 game_group.append(maze_bg)
 
@@ -447,18 +448,18 @@ game_group.append(maze_bg)
 # ITEMS GRID (DOTS & POWER PELLETS)
 # =============================================================================
 
-items_bitmap = displayio.Bitmap(8, 24, 3)
+items_bitmap = displayio.Bitmap(TILE_SIZE, TILE_SIZE * 3, 3)
 
 # Small Dot (Tile 1)
-items_bitmap[3, 11] = 1
-items_bitmap[4, 11] = 1
-items_bitmap[3, 12] = 1
-items_bitmap[4, 12] = 1
+items_bitmap[TILE_SIZE__2 - 1, TILE_SIZE + TILE_SIZE__2 - 1] = 1
+items_bitmap[TILE_SIZE__2, TILE_SIZE + TILE_SIZE__2 - 1] = 1
+items_bitmap[TILE_SIZE__2 - 1, TILE_SIZE + TILE_SIZE__2] = 1
+items_bitmap[TILE_SIZE__2, TILE_SIZE + TILE_SIZE__2] = 1
 
 # Power Pellet (Tile 2)
-for x in range(1, 7):
-    for y in range(17, 23):
-        if x in (1, 6) and y in (17, 22):
+for x in range(1, TILE_SIZE - 1):
+    for y in range(TILE_SIZE_X_2 + 1, TILE_SIZE * 3 - 1):
+        if x in (1, TILE_SIZE - 2) and y in (TILE_SIZE_X_2 + 1, TILE_SIZE * 3 - 2):
             continue
         items_bitmap[x, y] = 2
 
@@ -473,8 +474,8 @@ items_grid = displayio.TileGrid(
     pixel_shader=items_palette,
     width=MAZE_COLS,
     height=MAZE_ROWS,
-    tile_width=8,
-    tile_height=8,
+    tile_width=TILE_SIZE,
+    tile_height=TILE_SIZE,
     x=0,
     y=0,
 )
@@ -524,13 +525,15 @@ TOTAL_DOTS = sum(
 print(f"Total dots: {TOTAL_DOTS}")
 
 # Power pellet covers for blinking
-cover_bmp = displayio.Bitmap(8, 8, 1)
+cover_bmp = displayio.Bitmap(TILE_SIZE, TILE_SIZE, 1)
 cover_palette = displayio.Palette(1)
 cover_palette[0] = 0x000000
 
 pellet_covers = []
 for tx, ty in POWER_PELLETS:
-    tg = displayio.TileGrid(cover_bmp, pixel_shader=cover_palette, x=tx * 8, y=ty * 8)
+    tg = displayio.TileGrid(
+        cover_bmp, pixel_shader=cover_palette, x=tx * TILE_SIZE, y=ty * TILE_SIZE
+    )
     tg.hidden = True
     game_group.append(tg)
     pellet_covers.append(tg)
@@ -539,7 +542,13 @@ for tx, ty in POWER_PELLETS:
 # LOAD SPRITE SHEET
 # =============================================================================
 
-sprite_sheet, sprite_palette = adafruit_imageload.load("images/sprites.bmp")
+_sprite_sheet, sprite_palette = adafruit_imageload.load("images/sprites.bmp")
+if TILE_SIZE != 8:
+    sprite_sheet = displayio.Bitmap(GAME_WIDTH, GAME_HEIGHT, 2 ** _sprite_sheet.bits_per_value)
+    bitmaptools.rotozoom(sprite_sheet, _sprite_sheet, scale = TILE_SIZE / 8)
+else:
+    sprite_sheet = _sprite_sheet
+
 sprite_palette.make_transparent(0)
 
 gc.collect()
@@ -552,32 +561,38 @@ gc.collect()
 class PacMan:
     """Pac-Man player character."""
 
+    # TILE_SIZE = 8: 0, 8, 16, 24, 32, 40, 48   Faster than doing the math each time
+    _dir = [(i * TILE_SIZE) for i in range(7)]
+    _dir.append(16 * TILE_SIZE)
+
     FRAMES = {
-        DIR_RIGHT: [(0, 0), (16, 0), (32, 0)],
-        DIR_LEFT: [(0, 16), (16, 16), (32, 0)],
-        DIR_UP: [(0, 32), (16, 32), (32, 0)],
-        DIR_DOWN: [(0, 48), (16, 48), (32, 0)],
+        DIR_RIGHT: [(0, 0), (_dir[2], 0), (_dir[4], 0)],
+        DIR_LEFT: [(0, _dir[4]), (_dir[2], _dir[2]), (_dir[4], 0)],
+        DIR_UP: [(0, _dir[4]), (_dir[2], _dir[4]), (_dir[4], 0)],
+        DIR_DOWN: [(0, _dir[6]), (_dir[2], _dir[6]), (_dir[4], 0)],
     }
 
-    DEATH_FRAMES = [(48 + i * 16, 0) for i in range(11)]
-    SCORE_FRAMES = [(0, 128), (16, 128), (32, 128), (48, 128)]
+    #DEATH_FRAMES = [(_dir[6] + i * _dir[2], 0) for i in range(11)]
+    DEATH_FRAMES = [((TILE_SIZE * 6) + i * TILE_SIZE_X_2, 0) for i in range(11)]
+    SCORE_FRAMES = [(0, _dir[7]), (_dir[2], _dir[7]), (_dir[4], _dir[7]), (_dir[6], _dir[7])]
 
     def __init__(self):
+        print(sprite_sheet.width,TILE_SIZE_X_2)
         self.sprite = displayio.TileGrid(
             sprite_sheet,
             pixel_shader=sprite_palette,
             width=1,
             height=2,
-            tile_width=16,
-            tile_height=8,
+            tile_width=TILE_SIZE_X_2,
+            tile_height=TILE_SIZE,
         )
         self.reset()
 
     def reset(self):
         self.tile_x = 14
         self.tile_y = 23
-        self.x = 107
-        self.y = 181
+        self.x = self.tile_x * TILE_SIZE - TILE_SIZE__2
+        self.y = self.tile_y * TILE_SIZE - TILE_SIZE__2
         self.direction = DIR_NONE
         self.next_direction = DIR_NONE
         self.anim_frame = 0
@@ -592,8 +607,8 @@ class PacMan:
             direction = DIR_RIGHT
         frames = self.FRAMES.get(direction, self.FRAMES[DIR_RIGHT])
         fx, fy = frames[frame_idx % 3]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
+        tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
+        base_tile = (fy // TILE_SIZE) * tiles_per_row + (fx // TILE_SIZE_X_2)
         self.sprite[0, 0] = base_tile
         self.sprite[0, 1] = base_tile + tiles_per_row
 
@@ -601,8 +616,8 @@ class PacMan:
         if frame_idx >= len(self.DEATH_FRAMES):
             frame_idx = len(self.DEATH_FRAMES) - 1
         fx, fy = self.DEATH_FRAMES[frame_idx]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
+        tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
+        base_tile = (fy // TILE_SIZE) * tiles_per_row + (fx // TILE_SIZE_X_2)
         self.sprite[0, 0] = base_tile
         self.sprite[0, 1] = base_tile + tiles_per_row
 
@@ -610,8 +625,8 @@ class PacMan:
         if score_idx >= len(self.SCORE_FRAMES):
             score_idx = len(self.SCORE_FRAMES) - 1
         fx, fy = self.SCORE_FRAMES[score_idx]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
+        tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
+        base_tile = (fy // TILE_SIZE) * tiles_per_row + (fx // TILE_SIZE_X_2)
         self.sprite[0, 0] = base_tile
         self.sprite[0, 1] = base_tile + tiles_per_row
 
@@ -694,12 +709,12 @@ class PacMan:
         return MAZE_DATA[target_ty][target_tx] != WALL
 
     def at_tile_center(self):
-        center_x = self.x + 8
-        center_y = self.y + 8
-        dist_x = abs((center_x - 4) % 8)
-        dist_y = abs((center_y - 4) % 8)
-        dist_x = min(dist_x, 8 - dist_x)
-        dist_y = min(dist_y, 8 - dist_y)
+        center_x = self.x + TILE_SIZE
+        center_y = self.y + TILE_SIZE
+        dist_x = abs((center_x - TILE_SIZE__2) % TILE_SIZE)
+        dist_y = abs((center_y - TILE_SIZE__2) % TILE_SIZE)
+        dist_x = min(dist_x, TILE_SIZE - dist_x)
+        dist_y = min(dist_y, TILE_SIZE - dist_y)
         return dist_x <= PACMAN_SPEED and dist_y <= PACMAN_SPEED
 
     def is_opposite(self, dir1, dir2):
@@ -732,22 +747,22 @@ class PacMan:
                 and self.next_direction != self.direction
             ):
                 if self.can_turn(self.next_direction):
-                    center_x = self.x + 8
-                    center_y = self.y + 8
-                    tile_x = int(center_x // 8)
-                    tile_y = int(center_y // 8)
-                    self.x = tile_x * 8 + 4 - 8
-                    self.y = tile_y * 8 + 4 - 8
+                    center_x = self.x + TILE_SIZE
+                    center_y = self.y + TILE_SIZE
+                    tile_x = int(center_x // TILE_SIZE)
+                    tile_y = int(center_y // TILE_SIZE)
+                    self.x = tile_x * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+                    self.y = tile_y * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
                     self.direction = self.next_direction
                     self.next_direction = DIR_NONE
 
             if self.direction != DIR_NONE and not self.can_move(self.direction):
-                center_x = self.x + 8
-                center_y = self.y + 8
-                tile_x = int(center_x // 8)
-                tile_y = int(center_y // 8)
-                self.x = tile_x * 8 + 4 - 8
-                self.y = tile_y * 8 + 4 - 8
+                center_x = self.x + TILE_SIZE
+                center_y = self.y + TILE_SIZE
+                tile_x = int(center_x // TILE_SIZE)
+                tile_y = int(center_y // TILE_SIZE)
+                self.x = tile_x * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+                self.y = tile_y * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
                 self.direction = DIR_NONE
 
         # Move
@@ -762,10 +777,10 @@ class PacMan:
                 elif self.direction == DIR_RIGHT:
                     self.x += PACMAN_SPEED
 
-                if self.x < -16:
+                if self.x < -TILE_SIZE_X_2:
                     self.x = GAME_WIDTH
                 elif self.x >= GAME_WIDTH:
-                    self.x = -16
+                    self.x = -TILE_SIZE_X_2
 
                 self.anim_timer += 1
                 if self.anim_timer >= 3:
@@ -773,8 +788,8 @@ class PacMan:
                     self.anim_frame = (self.anim_frame + 1) % 3
                     self.set_frame(self.direction, self.anim_frame)
 
-        self.tile_x = int((self.x + 8) // TILE_SIZE)
-        self.tile_y = int((self.y + 8) // TILE_SIZE)
+        self.tile_x = int((self.x + TILE_SIZE) // TILE_SIZE)
+        self.tile_y = int((self.y + TILE_SIZE) // TILE_SIZE)
         self.update_sprite_pos()
 
 
@@ -786,10 +801,10 @@ class PacMan:
 class Ghost:
     """Ghost enemy character."""
 
-    TYPE_BLINKY = 64
-    TYPE_PINKY = 80
-    TYPE_INKY = 96
-    TYPE_CLYDE = 112
+    TYPE_BLINKY = 8 * TILE_SIZE
+    TYPE_PINKY = 10 * TILE_SIZE
+    TYPE_INKY = 12 * TILE_SIZE
+    TYPE_CLYDE = 14 * TILE_SIZE
 
     def __init__(self, ghost_type, start_tile_x, start_tile_y, x_offset=0):
         self.ghost_type = ghost_type
@@ -800,14 +815,14 @@ class Ghost:
             pixel_shader=sprite_palette,
             width=1,
             height=2,
-            tile_width=16,
-            tile_height=8,
+            tile_width=TILE_SIZE_X_2,
+            tile_height=TILE_SIZE,
         )
 
         self.tile_x = start_tile_x
         self.tile_y = start_tile_y
-        self.x = self.tile_x * 8 - 4 + x_offset
-        self.y = self.tile_y * 8 - 4
+        self.x = self.tile_x * TILE_SIZE - TILE_SIZE__2 + x_offset
+        self.y = self.tile_y * TILE_SIZE - TILE_SIZE__2
 
         self.direction = DIR_LEFT
         self.next_direction = DIR_NONE
@@ -841,38 +856,38 @@ class Ghost:
         base_x = 0
 
         if self.mode == MODE_FRIGHTENED:
-            base_y = 64
+            base_y = 8 * TILE_SIZE
             if (
                 self.frightened_timer > (FRIGHTENED_DURATION - 120)
                 and (self.frightened_timer // 10) % 2 == 0
             ):
-                base_x = 160
+                base_x = 20 * TILE_SIZE
             else:
-                base_x = 128
-            base_x += (frame_idx % 2) * 16
+                base_x = 16 * TILE_SIZE
+            base_x += (frame_idx % 2) * TILE_SIZE_X_2
         elif self.mode == MODE_EATEN:
-            base_y = 80
+            base_y = 10 * TILE_SIZE
             if direction == DIR_RIGHT:
-                base_x = 128
+                base_x = 16 * TILE_SIZE
             elif direction == DIR_LEFT:
-                base_x = 144
+                base_x = 18 * TILE_SIZE
             elif direction == DIR_UP:
-                base_x = 160
+                base_x = 20 * TILE_SIZE
             else:
-                base_x = 176
+                base_x = 22 * TILE_SIZE
         else:
             if direction == DIR_RIGHT:
                 base_x = 0
             elif direction == DIR_LEFT:
-                base_x = 32
+                base_x = 4 * TILE_SIZE
             elif direction == DIR_UP:
-                base_x = 64
+                base_x = 8 * TILE_SIZE
             else:
-                base_x = 96
-            base_x += (frame_idx % 2) * 16
+                base_x = 12 * TILE_SIZE
+            base_x += (frame_idx % 2) * TILE_SIZE_X_2
 
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (base_y // 8) * tiles_per_row + (base_x // 16)
+        tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
+        base_tile = (base_y // TILE_SIZE) * tiles_per_row + (base_x // TILE_SIZE_X_2)
         self.sprite[0, 0] = base_tile
         self.sprite[0, 1] = base_tile + tiles_per_row
 
@@ -882,7 +897,7 @@ class Ghost:
 
     def can_move(self, direction):
         next_x, next_y = self.x, self.y
-        speed = GHOST_SPEED if self.mode != MODE_EATEN else 2.0
+        speed = GHOST_SPEED if self.mode != MODE_EATEN else 2.0 * TILE_SIZE / 8
 
         if direction == DIR_UP:
             next_y -= speed
@@ -895,17 +910,17 @@ class Ghost:
         else:
             return False
 
-        center_x = next_x + 8
-        center_y = next_y + 8
+        center_x = next_x + TILE_SIZE
+        center_y = next_y + TILE_SIZE
 
-        if center_x < 8 or center_x > 216:
+        if center_x < TILE_SIZE or center_x > GAME_WIDTH - TILE_SIZE:
             if direction in (DIR_UP, DIR_DOWN):
                 return False
 
-        if next_x < -8 or next_x >= GAME_WIDTH - 8:
+        if next_x < -8 or next_x >= GAME_WIDTH - TILE_SIZE:
             return True
 
-        SENSOR_OFFSET = 3
+        SENSOR_OFFSET = TILE_SIZE__2 - 1
         if direction == DIR_UP:
             check_x, check_y = center_x, center_y - SENSOR_OFFSET
         elif direction == DIR_DOWN:
@@ -933,11 +948,17 @@ class Ghost:
         return MAZE_DATA[ty][tx] != WALL
 
     def at_tile_center(self):
-        center_x = self.x + 8
-        center_y = self.y + 8
-        dist_x = min(abs((center_x - 4) % 8), 8 - abs((center_x - 4) % 8))
-        dist_y = min(abs((center_y - 4) % 8), 8 - abs((center_y - 4) % 8))
-        threshold = 1.5 if self.mode == MODE_EATEN else 0.7
+        center_x = self.x + TILE_SIZE
+        center_y = self.y + TILE_SIZE
+        dist_x = min(
+            abs((center_x - TILE_SIZE__2) % TILE_SIZE),
+            TILE_SIZE - abs((center_x - TILE_SIZE__2) % TILE_SIZE)
+        )
+        dist_y = min(
+            abs((center_y - TILE_SIZE__2) % TILE_SIZE),
+            TILE_SIZE - abs((center_y - TILE_SIZE__2) % TILE_SIZE)
+        )
+        threshold = 1.5 * TILE_SIZE / 8 if self.mode == MODE_EATEN else 0.7 * TILE_SIZE / 8
         return dist_x <= threshold and dist_y <= threshold
 
     def get_chase_target(self, pacman, ghosts):
@@ -994,8 +1015,8 @@ class Ghost:
                 should_exit = self.house_timer > 600
 
             if should_exit:
-                target_x = 13 * 8
-                target_y = 11 * 8 - 4
+                target_x = 13 * TILE_SIZE
+                target_y = 11 * TILE_SIZE - TILE_SIZE__2
 
                 if abs(self.x - target_x) >= GHOST_SPEED:
                     self.x += GHOST_SPEED if self.x < target_x else -GHOST_SPEED
@@ -1009,14 +1030,14 @@ class Ghost:
                         self.in_house = False
                         self.direction = DIR_LEFT
             else:
-                center_y = 14 * 8 - 4
+                center_y = 14 * TILE_SIZE - TILE_SIZE__2
                 if self.direction == DIR_UP:
-                    self.y -= GHOST_SPEED / 2
-                    if self.y < center_y - 3:
+                    self.y -= GHOST_SPEED / (2 * TILE_SIZE / 8)
+                    if self.y < center_y - (TILE_SIZE__2 - 1):
                         self.direction = DIR_DOWN
                 else:
-                    self.y += GHOST_SPEED / 2
-                    if self.y > center_y + 3:
+                    self.y += GHOST_SPEED / (2 * TILE_SIZE / 8)
+                    if self.y > center_y + (TILE_SIZE__2 - 1):
                         self.direction = DIR_UP
 
             self.anim_timer += 1
@@ -1037,9 +1058,9 @@ class Ghost:
             }.get(self.direction, DIR_NONE)
             if self.can_move(rev):
                 self.direction = rev
-                center_x, center_y = self.x + 8, self.y + 8
-                self.x = int(center_x // 8) * 8 + 4 - 8
-                self.y = int(center_y // 8) * 8 + 4 - 8
+                center_x, center_y = self.x + TILE_SIZE, self.y + TILE_SIZE
+                self.x = (center_x // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+                self.y = (center_y // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
                 return
 
         if self.at_tile_center():
@@ -1057,8 +1078,8 @@ class Ghost:
                     self.in_house = True
                     self.house_timer = 0
                     self.direction = DIR_UP
-                    self.x = 104
-                    self.y = 14 * 8 - 4
+                    self.x = 13 * TILE_SIZE
+                    self.y = 14 * TILE_SIZE - TILE_SIZE__2
                     self.update_sprite_pos()
                     return
 
@@ -1115,16 +1136,16 @@ class Ghost:
             else:
                 self.direction = best_dir
 
-            center_x, center_y = self.x + 8, self.y + 8
-            self.x = int(center_x // 8) * 8 + 4 - 8
-            self.y = int(center_y // 8) * 8 + 4 - 8
+            center_x, center_y = self.x + TILE_SIZE, self.y + TILE_SIZE
+            self.x = (center_x // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+            self.y = (center_y // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
 
         if self.direction != DIR_NONE:
             speed = GHOST_SPEED
             if self.mode == MODE_FRIGHTENED:
                 speed *= 0.6
             elif self.mode == MODE_EATEN:
-                speed = 2.0
+                speed = 2.0 * TILE_SIZE / 8
 
             if self.can_move(self.direction):
                 if self.direction == DIR_UP:
@@ -1136,10 +1157,10 @@ class Ghost:
                 elif self.direction == DIR_RIGHT:
                     self.x += speed
 
-                if self.x < -16:
+                if self.x < -TILE_SIZE_X_2:
                     self.x = GAME_WIDTH
                 elif self.x >= GAME_WIDTH:
-                    self.x = -16
+                    self.x = -TILE_SIZE_X_2
 
                 self.anim_timer += 1
                 if self.anim_timer >= 10:
@@ -1147,16 +1168,16 @@ class Ghost:
                     self.anim_frame = (self.anim_frame + 1) % 2
                     self.set_frame(self.direction, self.anim_frame)
 
-        self.tile_x = int((self.x + 8) // TILE_SIZE)
-        self.tile_y = int((self.y + 8) // TILE_SIZE)
+        self.tile_x = int((self.x + TILE_SIZE) // TILE_SIZE)
+        self.tile_y = int((self.y + TILE_SIZE) // TILE_SIZE)
         self.update_sprite_pos()
 
     def reset(self):
         start_tile_x, start_tile_y, x_offset = self.start_params
         self.tile_x = start_tile_x
         self.tile_y = start_tile_y
-        self.x = self.tile_x * 8 - 4 + x_offset
-        self.y = self.tile_y * 8 - 4
+        self.x = self.tile_x * TILE_SIZE - TILE_SIZE__2 + x_offset
+        self.y = self.tile_y * TILE_SIZE - TILE_SIZE__2
         self.direction = DIR_LEFT
         self.in_house = self.ghost_type != Ghost.TYPE_BLINKY
         self.house_timer = 0
@@ -1200,8 +1221,8 @@ for i, (gx, gy, x_off) in enumerate(spawn_points):
 
 # Bonus fruit
 def get_tile_index(px, py):
-    tiles_per_row = sprite_sheet.width // 16
-    return (py // 8) * tiles_per_row + (px // 16)
+    tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
+    return (py // TILE_SIZE) * tiles_per_row + (px // TILE_SIZE_X_2)
 
 
 bonus_fruit = displayio.TileGrid(
@@ -1209,11 +1230,11 @@ bonus_fruit = displayio.TileGrid(
     pixel_shader=sprite_palette,
     width=1,
     height=2,
-    tile_width=16,
-    tile_height=8,
+    tile_width=TILE_SIZE_X_2,
+    tile_height=TILE_SIZE,
 )
-bonus_fruit.x = 13 * 8
-bonus_fruit.y = 17 * 8 - 4
+bonus_fruit.x = 13 * TILE_SIZE
+bonus_fruit.y = 17 * TILE_SIZE - TILE_SIZE__2
 bonus_fruit.hidden = True
 game_group.append(bonus_fruit)
 
@@ -1225,18 +1246,18 @@ for i in range(5):
         pixel_shader=sprite_palette,
         width=1,
         height=2,
-        tile_width=16,
-        tile_height=8,
+        tile_width=TILE_SIZE_X_2,
+        tile_height=TILE_SIZE,
     )
     if DISPLAY_VERTICAL:
         # Position at bottom left, spaced 16 pixels apart
-        life_tg.x = (OFFSET_X + 24 + (i * 16)) // SCORE_SCALE
-        life_tg.y = (OFFSET_Y + GAME_HEIGHT * GAME_SCALE + 4) // SCORE_SCALE  # Below game area
+        life_tg.x = (OFFSET_X + (3 * TILE_SIZE) + (i * TILE_SIZE_X_2)) // SCORE_SCALE
+        life_tg.y = (OFFSET_Y + GAME_HEIGHT * GAME_SCALE + TILE_SIZE__2) // SCORE_SCALE  # Below game area
     else:
-        life_tg.x = 20 + (i * int(0.06 * DISPLAY_WIDTH / SCORE_SCALE))
+        life_tg.x = TILE_SIZE_X_2 + 4 + (i * int(0.06 * DISPLAY_WIDTH / SCORE_SCALE))
         life_tg.y = int(0.83 * DISPLAY_HEIGHT / SCORE_SCALE)
     base_tile = get_tile_index(SPRITE_LIFE[0], SPRITE_LIFE[1])
-    tiles_per_row = sprite_sheet.width // 16
+    tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
     life_tg[0, 0] = base_tile
     life_tg[0, 1] = base_tile + tiles_per_row
     life_tg.hidden = True
@@ -1298,18 +1319,18 @@ try:
                 level_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE - 8, 8)  # top right
             
         else:
-            one_up_label.x, one_up_label.y = 20, int(0.1 * DISPLAY_HEIGHT / SCORE_SCALE)
-            score_label.x, score_label.y = 20, int(0.17 * DISPLAY_HEIGHT / SCORE_SCALE)
-            high_score_label.x, high_score_label.y = 20, int(0.43 * DISPLAY_HEIGHT / SCORE_SCALE)
-            level_label.x, level_label.y = 20, int(0.58 * DISPLAY_HEIGHT / SCORE_SCALE)
+            one_up_label.x, one_up_label.y = TILE_SIZE_X_2 + 4, int(0.1 * DISPLAY_HEIGHT / SCORE_SCALE)
+            score_label.x, score_label.y = TILE_SIZE_X_2 + 4, int(0.17 * DISPLAY_HEIGHT / SCORE_SCALE)
+            high_score_label.x, high_score_label.y = TILE_SIZE_X_2 + 4, int(0.43 * DISPLAY_HEIGHT / SCORE_SCALE)
+            level_label.x, level_label.y = TILE_SIZE_X_2 + 4, int(0.58 * DISPLAY_HEIGHT / SCORE_SCALE)
 
             hs_title.text = "HIGH"
-            hs_title.x, hs_title.y = 20, int(0.31 * DISPLAY_HEIGHT / SCORE_SCALE)
+            hs_title.x, hs_title.y = TILE_SIZE_X_2 + 4, int(0.31 * DISPLAY_HEIGHT / SCORE_SCALE)
 
             hs_title2 = label.Label(
                 font, text="SCORE", color=0xFFFFFF,
             )
-            hs_title2.x, hs_title2.y = 20, int(0.36 * DISPLAY_HEIGHT / SCORE_SCALE)
+            hs_title2.x, hs_title2.y = TILE_SIZE_X_2 + 4, int(0.36 * DISPLAY_HEIGHT / SCORE_SCALE)
 
         game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
         game_over_label.anchor_point = (0.5, 0.5)
@@ -1381,7 +1402,7 @@ def update_fruit_sprite():
     fruit_idx = min(level - 1, len(FRUIT_LEVELS) - 1)
     fx, fy = FRUIT_LEVELS[fruit_idx]
     base_tile = get_tile_index(fx, fy)
-    tiles_per_row = sprite_sheet.width // 16
+    tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
     bonus_fruit[0, 0] = base_tile
     bonus_fruit[0, 1] = base_tile + tiles_per_row
 
@@ -1565,8 +1586,8 @@ try:
                 ghost.update(pacman, ghosts, current_mode)
 
                 # Collision
-                dx = abs((pacman.x + 8) - (ghost.x + 8))
-                dy = abs((pacman.y + 8) - (ghost.y + 8))
+                dx = abs((pacman.x + TILE_SIZE) - (ghost.x + TILE_SIZE))
+                dy = abs((pacman.y + TILE_SIZE) - (ghost.y + TILE_SIZE))
 
                 if dx < 6 and dy < 6:
                     if ghost.mode == MODE_FRIGHTENED:
@@ -1613,10 +1634,10 @@ try:
                     bonus_fruit_active = False
                     bonus_fruit.hidden = True
                 else:
-                    fx, fy = 13 * 8, 17 * 8
-                    dx = abs((pacman.x + 8) - (fx + 8))
-                    dy = abs((pacman.y + 8) - (fy + 8))
-                    if dx < 8 and dy < 8:
+                    fx, fy = 13 * TILE_SIZE, 17 * TILE_SIZE
+                    dx = abs((pacman.x + TILE_SIZE) - (fx + TILE_SIZE))
+                    dy = abs((pacman.y + TILE_SIZE) - (fy + TILE_SIZE))
+                    if dx < TILE_SIZE and dy < TILE_SIZE:
                         fruit_idx = min(level - 1, len(FRUIT_POINTS) - 1)
                         score += FRUIT_POINTS[fruit_idx]
                         sound.play_eat_ghost()

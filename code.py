@@ -578,7 +578,7 @@ class PacMan:
             tile_width=16,
             tile_height=16,
         )
-        self.ms = False
+        self._ms = False
         self.reset()
 
     def reset(self):
@@ -595,13 +595,23 @@ class PacMan:
         self.set_frame(DIR_RIGHT, 0)
         self.update_sprite_pos()
 
+    @property
+    def ms(self) -> bool:
+        return self._ms
+    
+    @ms.setter
+    def ms(self, value: bool) -> None:
+        self._ms = value
+        maze_palette[1] = 0xfc0000 if value else 0x2121ff
+        maze_palette[3] = 0xffa37f if value else 0x000000
+
     def _set_tile(self, fx, fy):
         self.sprite[0, 0] = (fy // 16) * (sprite_sheet.width // 16) + (fx // 16)
 
     def set_frame(self, direction, frame_idx):
         if direction == DIR_NONE:
             direction = DIR_RIGHT
-        if self.ms:
+        if self._ms:
             frames = self.MS_FRAMES.get(direction, self.MS_FRAMES[DIR_RIGHT])
         else:
             frames = self.FRAMES.get(direction, self.FRAMES[DIR_RIGHT])

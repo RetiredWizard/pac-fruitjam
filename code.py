@@ -577,7 +577,6 @@ class PacMan:
     SCORE_FRAMES = [(0, _dir[7]), (_dir[2], _dir[7]), (_dir[4], _dir[7]), (_dir[6], _dir[7])]
 
     def __init__(self):
-        print(sprite_sheet.width,TILE_SIZE_X_2)
         self.sprite = displayio.TileGrid(
             sprite_sheet,
             pixel_shader=sprite_palette,
@@ -1032,11 +1031,11 @@ class Ghost:
             else:
                 center_y = 14 * TILE_SIZE - TILE_SIZE__2
                 if self.direction == DIR_UP:
-                    self.y -= GHOST_SPEED / (2 * TILE_SIZE / 8)
+                    self.y -= GHOST_SPEED / 2
                     if self.y < center_y - (TILE_SIZE__2 - 1):
                         self.direction = DIR_DOWN
                 else:
-                    self.y += GHOST_SPEED / (2 * TILE_SIZE / 8)
+                    self.y += GHOST_SPEED / 2
                     if self.y > center_y + (TILE_SIZE__2 - 1):
                         self.direction = DIR_UP
 

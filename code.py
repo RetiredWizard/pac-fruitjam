@@ -896,7 +896,7 @@ class Ghost:
 
     def can_move(self, direction):
         next_x, next_y = self.x, self.y
-        speed = GHOST_SPEED if self.mode != MODE_EATEN else 2.0 * TILE_SIZE / 8
+        speed = GHOST_SPEED if self.mode != MODE_EATEN else 2.0
 
         if direction == DIR_UP:
             next_y -= speed
@@ -1144,7 +1144,7 @@ class Ghost:
             if self.mode == MODE_FRIGHTENED:
                 speed *= 0.6
             elif self.mode == MODE_EATEN:
-                speed = 2.0 * TILE_SIZE / 8
+                speed = 2.0
 
             if self.can_move(self.direction):
                 if self.direction == DIR_UP:

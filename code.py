@@ -13,6 +13,7 @@ import displayio
 import audiobusio
 import supervisor
 import synthio
+import json
 from adafruit_fruitjam.peripherals import Peripherals, request_display_config, VALID_DISPLAY_SIZES
 import adafruit_imageload
 import relic_usb_host_gamepad
@@ -133,6 +134,7 @@ FRIGHTENED_DURATION = 360
 
 # High score file path
 HIGH_SCORE_FILE = "/saves/highscores.txt"
+SETTINGS_FILE = "/saves/pac-fruitjam.json"
 
 # Sprite coordinates
 # fmt: off
@@ -194,7 +196,7 @@ class SoundEngine:
     """I2S audio output using TLV320DAC3100 DAC for Pac-Man sounds."""
 
     def __init__(self):
-        self.enabled = True
+        self._enabled = True
         self.synth = None
         self.peripherals = None
         self.audio = None
@@ -245,11 +247,11 @@ class SoundEngine:
 
         except Exception as e:
             print(f"Audio init error: {e}")
-            self.enabled = False
+            self._enabled = False
 
     def play_tone(self, frequency):
         """Play a simple tone."""
-        if not self.enabled or not self.synth:
+        if not self._enabled or not self.synth:
             return
         try:
             self.stop()
@@ -278,7 +280,7 @@ class SoundEngine:
 
     def play_eat_ghost(self):
         """Play ghost eating sound - quick ascending."""
-        if not self.enabled or not self.synth:
+        if not self._enabled or not self.synth:
             return
         for freq in range(200, 800, 150):
             self.play_tone(freq)
@@ -287,7 +289,7 @@ class SoundEngine:
 
     def play_startup(self):
         """Play startup jingle."""
-        if not self.enabled or not self.synth:
+        if not self._enabled or not self.synth:
             return
 
         T = 0.08
@@ -311,10 +313,18 @@ class SoundEngine:
 
         self.stop()
 
-    def toggle(self):
-        """Toggle sound on/off."""
-        if self.enabled:
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+    
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        if not value and self._enabled:
             self.stop()
+        self._enabled = value
+
+    def toggle(self) -> bool:
+        """Toggle sound on/off."""
         self.enabled = not self.enabled
         return self.enabled
     
@@ -396,6 +406,64 @@ class HighScoreManager:
     def get_high_score(self):
         """Get the highest score."""
         return self.scores[0][0] if self.scores else 0
+
+
+# =============================================================================
+# SETTINGS MANAGER
+# =============================================================================
+
+
+class SettingsManager:
+    """Manages game settings."""
+
+    def __init__(self, sound: SoundEngine, gamepad: relic_usb_host_gamepad.Gamepad, path=SETTINGS_FILE):
+        self._sound = sound
+        self._gamepad = gamepad
+        self._path = path
+
+        # load saved configuration
+        self._data = {}
+        try:
+            with open(self._path, "r") as f:
+                try:
+                    data = json.load(f)
+                except (ValueError, AttributeError):
+                    pass
+                else:
+                    if isinstance(data, dict):
+                        self._data = data
+        except OSError:
+            pass
+
+        # apply saved configuration
+        self._sound.enabled = self.sound_enabled
+        self._gamepad.left_joystick_invert_y = self.left_joystick_invert_y
+
+    def save(self):
+        """Save settings to file."""
+        try:
+            with open(self._path, "w") as f:
+                json.dump(self._data, f)
+        except OSError as e:
+            print(f"Error saving settings: {e}")
+
+    @property
+    def sound_enabled(self) -> bool:
+        return bool(self._data.get("sound_enabled", True))
+    
+    @sound_enabled.setter
+    def sound_enabled(self, value: bool) -> None:
+        self._data["sound_enabled"] = value
+        self._sound.enabled = value
+
+    @property
+    def left_joystick_invert_y(self) -> bool:
+        return bool(self._data.get("left_joystick_invert_y", False))
+
+    @left_joystick_invert_y.setter
+    def left_joystick_invert_y(self, value: bool) -> None:
+        self._data["left_joystick_invert_y"] = value
+        self._gamepad.left_joystick_invert_y = value
 
 
 # =============================================================================
@@ -1362,6 +1430,7 @@ def is_button_press(*buttons: int) -> bool:
 
 sound = SoundEngine()
 high_scores = HighScoreManager()
+settings = SettingsManager(sound, gamepad)
 
 # Game state
 score = 0
@@ -1477,8 +1546,17 @@ try:
             break
 
         # Toggle sound
-        if "\n" in keys or "Z" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_SELECT):
-            sound.toggle()
+        if "\n" in keys or "Z" in keys:
+            settings.sound_enabled = not settings.sound_enabled
+
+        # Handle gamepad settings combos
+        if gamepad.buttons.SELECT:
+            for event in gamepad.events:
+                if event.pressed:
+                    if event.key_number == relic_usb_host_gamepad.BUTTON_A:  # SELECT+A = toggle sound
+                        settings.sound_enabled = not settings.sound_enabled
+                    elif event.key_number == relic_usb_host_gamepad.BUTTON_B:  # SELECT+B = toggle joystick y-axis inversion
+                        settings.left_joystick_invert_y = not settings.left_joystick_invert_y
 
         # Toggle Ms. Pacman
         if "M" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_X):
@@ -1519,10 +1597,9 @@ try:
             # print(f"mode switching took: {now - play_state_start}")
 
             # Read input
-            # Joystick UP/DOWN reversed because of flight simulator bias on Joysticks
-            if "\x1b[A" in keys or "W" in keys or gamepad.buttons.UP or gamepad.buttons.JOYSTICK_DOWN:
+            if "\x1b[A" in keys or "W" in keys or gamepad.buttons.UP or gamepad.buttons.JOYSTICK_UP:
                 pacman.next_direction = DIR_UP
-            elif "\x1b[B" in keys or "S" in keys or gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_UP:
+            elif "\x1b[B" in keys or "S" in keys or gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_DOWN:
                 pacman.next_direction = DIR_DOWN
             elif "\x1b[D" in keys or "A" in keys or gamepad.buttons.LEFT or gamepad.buttons.JOYSTICK_LEFT:
                 pacman.next_direction = DIR_LEFT
@@ -1788,9 +1865,16 @@ except KeyboardInterrupt:  # Ctrl+C was pressed
     pass
 
 finally:
-    # Clean up
-    if high_scores.is_high_score(score):  # save high score
+    # save high score
+    if high_scores.is_high_score(score):
         high_scores.add_score(score, "PAC")
+
+    # save settings
+    settings.save()
+    
+    # Clean up
     sound.deinit()  # stop audio and deinit dac
     gamepad.disconnect()  # release usb gamepad resources
-    supervisor.reload()  # reload or return to Fruit Jam OS
+
+    # reload or return to Fruit Jam OS
+    supervisor.reload()

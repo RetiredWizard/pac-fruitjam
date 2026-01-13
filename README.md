@@ -28,6 +28,10 @@ Originally forked from https://github.com/scarolan/pac-wio/tree/main by [TheKitt
 | Restart after Game Over | Space Bar | Start |
 | Toggle Sound On/Off | Z / Enter | Select |
 | Quit Game | Q / Escape | Home / Select+Start |
+| Toggle Sound On/Off | Z / Enter | Select + A |
+| Quit Game | Q / Escape | Home |
+| Invert Joystick Y-Axis | | Select + B |
+| Toggle Ms. Pac-Man | M | X |
 
 ### Scoring
 | Item | Points |

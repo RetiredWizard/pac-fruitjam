@@ -1560,6 +1560,10 @@ try:
         if "\n" in keys or "Z" in keys:
             settings.sound_enabled = not settings.sound_enabled
 
+        # Toggle Ms. Pacman
+        if "M" in keys:
+            settings.ms_pacman = not settings.ms_pacman
+
         # Handle gamepad settings combos
         if gamepad.buttons.SELECT:
             for event in gamepad.events:
@@ -1568,10 +1572,8 @@ try:
                         settings.sound_enabled = not settings.sound_enabled
                     elif event.key_number == relic_usb_host_gamepad.BUTTON_B:  # SELECT+B = toggle joystick y-axis inversion
                         settings.left_joystick_invert_y = not settings.left_joystick_invert_y
-
-        # Toggle Ms. Pacman
-        if "M" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_X):
-            pacman.ms = not pacman.ms
+                    elif event.key_number == relic_usb_host_gamepad.BUTTON_X:  # SELECT+X = toggle Ms. Pacman
+                        settings.ms_pacman = not settings.ms_pacman
 
         # now = time.monotonic()
         # print(f"controller update took: {now - start_time}")

@@ -1458,7 +1458,7 @@ try:
         gamepad.update()
 
         # Exit game loop
-        if "\x1b" in keys or "Q" in keys or gamepad.buttons.HOME:
+        if "\x1b" in keys or "Q" in keys or gamepad.buttons.HOME or (gamepad.buttons.SELECT and gamepad.buttons.START):
             break
 
         # Toggle sound

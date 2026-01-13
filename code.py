@@ -416,9 +416,10 @@ class HighScoreManager:
 class SettingsManager:
     """Manages game settings."""
 
-    def __init__(self, sound: SoundEngine, gamepad: relic_usb_host_gamepad.Gamepad, path=SETTINGS_FILE):
+    def __init__(self, sound: SoundEngine, gamepad: relic_usb_host_gamepad.Gamepad, pacman: PacMan, path=SETTINGS_FILE):
         self._sound = sound
         self._gamepad = gamepad
+        self._pacman = pacman
         self._path = path
 
         # load saved configuration
@@ -438,6 +439,7 @@ class SettingsManager:
         # apply saved configuration
         self._sound.enabled = self.sound_enabled
         self._gamepad.left_joystick_invert_y = self.left_joystick_invert_y
+        self._pacman.ms = self.ms_pacman
 
     def save(self):
         """Save settings to file."""
@@ -464,6 +466,15 @@ class SettingsManager:
     def left_joystick_invert_y(self, value: bool) -> None:
         self._data["left_joystick_invert_y"] = value
         self._gamepad.left_joystick_invert_y = value
+
+    @property
+    def ms_pacman(self) -> bool:
+        return bool(self._data.get("ms_pacman", False))
+    
+    @ms_pacman.setter
+    def ms_pacman(self, value: bool) -> None:
+        self._data["ms_pacman"] = value
+        self._pacman.ms = value
 
 
 # =============================================================================
@@ -1430,7 +1441,7 @@ def is_button_press(*buttons: int) -> bool:
 
 sound = SoundEngine()
 high_scores = HighScoreManager()
-settings = SettingsManager(sound, gamepad)
+settings = SettingsManager(sound, gamepad, pacman)
 
 # Game state
 score = 0

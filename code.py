@@ -627,6 +627,13 @@ class PacMan:
         DIR_DOWN: [(0, 48), (16, 48), (32, 0)],
     }
 
+    MS_FRAMES = {
+        DIR_RIGHT: [(0, 208), (16, 208), (32, 208)],
+        DIR_LEFT: [(48, 208), (64, 208), (80, 208)],
+        DIR_UP: [(96, 208), (112, 208), (128, 208)],
+        DIR_DOWN: [(144, 208), (160, 208), (176, 208)],
+    }
+
     DEATH_FRAMES = [(48 + i * 16, 0) for i in range(11)]
     SCORE_FRAMES = [(0, 128), (16, 128), (32, 128), (48, 128)]
 
@@ -635,10 +642,11 @@ class PacMan:
             sprite_sheet,
             pixel_shader=sprite_palette,
             width=1,
-            height=2,
+            height=1,
             tile_width=16,
-            tile_height=8,
+            tile_height=16,
         )
+        self._ms = False
         self.reset()
 
     def reset(self):
@@ -655,33 +663,37 @@ class PacMan:
         self.set_frame(DIR_RIGHT, 0)
         self.update_sprite_pos()
 
+    @property
+    def ms(self) -> bool:
+        return self._ms
+    
+    @ms.setter
+    def ms(self, value: bool) -> None:
+        self._ms = value
+        maze_palette[1] = 0xfc0000 if value else 0x2121ff
+        maze_palette[3] = 0xffa37f if value else 0x000000
+
+    def _set_tile(self, fx, fy):
+        self.sprite[0, 0] = (fy // 16) * (sprite_sheet.width // 16) + (fx // 16)
+
     def set_frame(self, direction, frame_idx):
         if direction == DIR_NONE:
             direction = DIR_RIGHT
-        frames = self.FRAMES.get(direction, self.FRAMES[DIR_RIGHT])
-        fx, fy = frames[frame_idx % 3]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
-        self.sprite[0, 0] = base_tile
-        self.sprite[0, 1] = base_tile + tiles_per_row
+        if self._ms:
+            frames = self.MS_FRAMES.get(direction, self.MS_FRAMES[DIR_RIGHT])
+        else:
+            frames = self.FRAMES.get(direction, self.FRAMES[DIR_RIGHT])
+        self._set_tile(*frames[frame_idx % 3])
 
     def set_death_frame(self, frame_idx):
         if frame_idx >= len(self.DEATH_FRAMES):
             frame_idx = len(self.DEATH_FRAMES) - 1
-        fx, fy = self.DEATH_FRAMES[frame_idx]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
-        self.sprite[0, 0] = base_tile
-        self.sprite[0, 1] = base_tile + tiles_per_row
+        self._set_tile(*self.DEATH_FRAMES[frame_idx])
 
     def set_score_frame(self, score_idx):
         if score_idx >= len(self.SCORE_FRAMES):
             score_idx = len(self.SCORE_FRAMES) - 1
-        fx, fy = self.SCORE_FRAMES[score_idx]
-        tiles_per_row = sprite_sheet.width // 16
-        base_tile = (fy // 8) * tiles_per_row + (fx // 16)
-        self.sprite[0, 0] = base_tile
-        self.sprite[0, 1] = base_tile + tiles_per_row
+        self._set_tile(*self.SCORE_FRAMES[score_idx])
 
     def update_sprite_pos(self):
         self.sprite.x = int(self.x)
@@ -1413,6 +1425,9 @@ except Exception as e:
 gamepad = relic_usb_host_gamepad.Gamepad(debug=False)
 gamepad.joystick_threshold = 0.8
 
+def is_button_press(*buttons: int) -> bool:
+    return (gamepad.connected and any(event.pressed and event.key_number in buttons for event in gamepad.events))
+
 sound = SoundEngine()
 high_scores = HighScoreManager()
 settings = SettingsManager(sound, gamepad)
@@ -1527,7 +1542,7 @@ try:
         gamepad.update()
 
         # Exit game loop
-        if "\x1b" in keys or "Q" in keys or gamepad.buttons.HOME:
+        if "\x1b" in keys or "Q" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_HOME):
             break
 
         # Toggle sound
@@ -1542,6 +1557,10 @@ try:
                         settings.sound_enabled = not settings.sound_enabled
                     elif event.key_number == relic_usb_host_gamepad.BUTTON_B:  # SELECT+B = toggle joystick y-axis inversion
                         settings.left_joystick_invert_y = not settings.left_joystick_invert_y
+
+        # Toggle Ms. Pacman
+        if "M" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_X):
+            pacman.ms = not pacman.ms
 
         # now = time.monotonic()
         # print(f"controller update took: {now - start_time}")

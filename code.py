@@ -711,8 +711,8 @@ class PacMan:
     @ms.setter
     def ms(self, value: bool) -> None:
         self._ms = value
-        maze_palette[1] = 0xFC0000 if value else 0x2121FF
-        maze_palette[3] = 0xFFA37F if value else 0x000000
+        maze_palette[1] = 0xE01000 if value else 0x2121FF
+        maze_palette[3] = 0xFFB694 if value else 0x000000
 
     def _set_tile(self, fx, fy):
         self.sprite[0, 0] = (fy // TILE_SIZE_X_2) * (
@@ -1405,7 +1405,7 @@ try:
 
         score_label = label.Label(
             font,
-            text="0",
+            text="00",
             color=0xFFFFFF,
         )
 
@@ -1534,6 +1534,7 @@ settings = SettingsManager(sound, gamepad, pacman)
 
 # Game state
 score = 0
+last_score = 0
 lives = 3
 level = 1
 dots_eaten = 0
@@ -1608,8 +1609,8 @@ if score_label:
     for _ in range(1000,1,-100):
         score_label.text = str(_)
 
-    score_label.hidden = False
     score_label.text = "00"
+    score_label.hidden = False
 
 if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
@@ -1921,17 +1922,21 @@ try:
 
         elif game_state == STATE_LEVEL_COMPLETE:
             level_complete_timer += 1
+
+            if level_complete_timer == 1:
+                frame_blink_palette = maze_palette[1]
+
             if level_complete_timer % 15 == 0:
                 try:
                     maze_palette[1] = (
-                        0xFFFFFF if (level_complete_timer // 15) % 2 else 0x2121DE
+                        frame_blink_palette | 0x333333 if (level_complete_timer // 15) % 2 else frame_blink_palette
                     )
                 except:
                     pass
 
             if level_complete_timer >= 180:
                 try:
-                    maze_palette[1] = 0x2121DE
+                    maze_palette[1] = frame_blink_palette
                 except:
                     pass
 
@@ -1960,6 +1965,7 @@ try:
         elif game_state == STATE_GAME_OVER:
             if " " in keys or gamepad.buttons.START:
                 reset_game()
+                level_complete_timer = 0
                 level_label.text = f"LVL {level}"
                 game_state = STATE_READY
                 if ready_label:
@@ -1981,8 +1987,10 @@ try:
         # prev_time = now
 
         # Update score display
-        if score_label:
-            score_label.text = str(score) if score > 0 else "00"
+        if score != last_score:
+            if score_label:
+                score_label.text = str(score) if score > 0 else "00"
+            last_score = score
 
         # now = time.monotonic()
         # print(f"update score took: {now - prev_time}")

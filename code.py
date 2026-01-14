@@ -61,7 +61,6 @@ if (SCREEN_WIDTH := os.getenv("CIRCUITPY_DISPLAY_WIDTH")) is not None:
 else:
     SCREEN_WIDTH = 320
     SCREEN_HEIGHT = 240
-SCREEN_WIDE = (SCREEN_WIDTH / SCREEN_HEIGHT) >= 1.5
 
 # Scale factor for display (2x looks good on 640x480)
 SCORE_SCALE = GAME_SCALE = round(SCREEN_WIDTH / 320)
@@ -71,6 +70,9 @@ if SCORE_SCALE > 1:
     SCREEN_WIDTH //= SCORE_SCALE
     SCREEN_HEIGHT //= SCORE_SCALE
     SCORE_SCALE = GAME_SCALE = 1
+
+# SCORE_SCALE and GAME_SCALE will always be 1 in the current version
+# but we'll leave the old code for future screen flexibility    
 
 # Display dimensions
 DISPLAY_ROTATION = os.getenv("CIRCUITPY_DISPLAY_ROTATION", 0)
@@ -836,9 +838,10 @@ class PacMan:
         if self.next_direction != DIR_NONE and self.is_opposite(
             self.direction, self.next_direction
         ):
-            if self.can_move(self.next_direction):
-                self.direction = self.next_direction
-                self.next_direction = DIR_NONE
+            # We were just coming from this direction so it should be valid
+            #if self.can_move(self.next_direction):
+            self.direction = self.next_direction
+            self.next_direction = DIR_NONE
 
         # Start from stop
         elif self.direction == DIR_NONE and self.next_direction != DIR_NONE:
@@ -1550,7 +1553,6 @@ eaten_ghost_ref = None
 level_complete_timer = 0
 blink_timer = 0
 blink_state = True
-ready_timer = 0
 
 
 def update_life_display():
@@ -1599,17 +1601,27 @@ def reset_game():
 update_life_display()
 update_fruit_sprite()
 
+# Displayio glitch causes Pac-Man to studder when game first starts, Updating the
+# score_label 10 times before the game starts gets the studders out of the way
+if score_label:
+    score_label.hidden = True
+    for _ in range(1000,1,-100):
+        score_label.text = str(_)
+
+    score_label.hidden = False
+    score_label.text = "00"
+
 if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
 
 print(f"Free memory: {gc.mem_free()}")
 
-# Play startup
-sound.play_startup()
 game_state = STATE_READY
-ready_timer = 0
 if ready_label:
     ready_label.hidden = False
+
+# Play startup
+sound.play_startup()
 
 # =============================================================================
 # MAIN GAME LOOP
@@ -1673,12 +1685,10 @@ try:
         # prev_time = now
 
         if game_state == STATE_READY:
-            ready_timer += 1
-            if ready_timer >= 120:  # ~2 seconds
-                game_state = STATE_PLAY
-                if ready_label:
-                    ready_label.hidden = True
-                last_mode_time = time.monotonic()
+            game_state = STATE_PLAY
+            if ready_label:
+                ready_label.hidden = True
+            last_mode_time = time.monotonic()
 
         elif game_state == STATE_PLAY:
             # play_state_start = time.monotonic()
@@ -1790,7 +1800,7 @@ try:
                 dx = abs((pacman.x + TILE_SIZE) - (ghost.x + TILE_SIZE))
                 dy = abs((pacman.y + TILE_SIZE) - (ghost.y + TILE_SIZE))
 
-                if dx < 6 and dy < 6:
+                if dx < round(TILE_SIZE * .75) and dy < round(TILE_SIZE * .75):
                     if ghost.mode == MODE_FRIGHTENED:
                         sound.play_eat_ghost()
                         points = 200 * (2**ghosts_eaten_count)
@@ -1942,21 +1952,19 @@ try:
                     level_label.text = f"LVL {level}"
                 update_fruit_sprite()
 
-                sound.play_startup()
                 game_state = STATE_READY
-                ready_timer = 0
                 if ready_label:
                     ready_label.hidden = False
+                sound.play_startup()
 
         elif game_state == STATE_GAME_OVER:
             if " " in keys or gamepad.buttons.START:
                 reset_game()
                 level_label.text = f"LVL {level}"
-                sound.play_startup()
                 game_state = STATE_READY
-                ready_timer = 0
                 if ready_label:
                     ready_label.hidden = False
+                sound.play_startup()
 
         # Blink power pellets
         blink_timer += 1

@@ -1542,7 +1542,7 @@ try:
         gamepad.update()
 
         # Exit game loop
-        if "\x1b" in keys or "Q" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_HOME):
+        if "\x1b" in keys or "Q" in keys or gamepad.buttons.HOME or (gamepad.buttons.SELECT and gamepad.buttons.START):
             break
 
         # Toggle sound

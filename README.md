@@ -27,7 +27,7 @@ Originally forked from https://github.com/scarolan/pac-wio/tree/main by [TheKitt
 | Move Pac-Man | Arrow keys / WASD | D-pad / Joystick |
 | Restart after Game Over | Space Bar | Start |
 | Toggle Sound On/Off | Z / Enter | Select + A |
-| Quit Game | Q / Escape | Home |
+| Quit Game | Q / Escape | Home / Select + Start |
 | Invert Joystick Y-Axis | | Select + B |
 | Toggle Ms. Pac-Man | M | X |
 

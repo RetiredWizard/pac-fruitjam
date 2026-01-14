@@ -15,7 +15,11 @@ import supervisor
 import synthio
 import json
 import bitmaptools
-from adafruit_fruitjam.peripherals import Peripherals, request_display_config, VALID_DISPLAY_SIZES
+from adafruit_fruitjam.peripherals import (
+    Peripherals,
+    request_display_config,
+    VALID_DISPLAY_SIZES,
+)
 import adafruit_imageload
 import relic_usb_host_gamepad
 
@@ -81,8 +85,8 @@ OFFSET_X = (DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE) // 2
 OFFSET_Y = (DISPLAY_HEIGHT - GAME_HEIGHT * GAME_SCALE) // 2  # Centered vertically
 
 # Movement speeds (pixels per frame at game resolution)
-PACMAN_SPEED = 1.3 * TILE_SIZE / 8 # was 1.3
-GHOST_SPEED = 1.22 * TILE_SIZE / 8 # was 1.22
+PACMAN_SPEED = 1.3 * TILE_SIZE / 8  # was 1.3
+GHOST_SPEED = 1.22 * TILE_SIZE / 8  # was 1.22
 FRAME_DELAY = 0.016  # ~60 FPS target  was 0.016
 
 # Directions
@@ -311,7 +315,7 @@ class SoundEngine:
     @property
     def enabled(self) -> bool:
         return self._enabled
-    
+
     @enabled.setter
     def enabled(self, value: bool) -> None:
         if not value and self._enabled:
@@ -322,7 +326,7 @@ class SoundEngine:
         """Toggle sound on/off."""
         self.enabled = not self.enabled
         return self.enabled
-    
+
     def deinit(self):
         self.stop()
         if self.audio and (self.peripherals is None or self.peripherals.dac is None):
@@ -411,7 +415,12 @@ class HighScoreManager:
 class SettingsManager:
     """Manages game settings."""
 
-    def __init__(self, sound: SoundEngine, gamepad: relic_usb_host_gamepad.Gamepad, path=SETTINGS_FILE):
+    def __init__(
+        self,
+        sound: SoundEngine,
+        gamepad: relic_usb_host_gamepad.Gamepad,
+        path=SETTINGS_FILE,
+    ):
         self._sound = sound
         self._gamepad = gamepad
         self._path = path
@@ -445,7 +454,7 @@ class SettingsManager:
     @property
     def sound_enabled(self) -> bool:
         return bool(self._data.get("sound_enabled", True))
-    
+
     @sound_enabled.setter
     def sound_enabled(self, value: bool) -> None:
         self._data["sound_enabled"] = value
@@ -490,7 +499,9 @@ score_group = displayio.Group(scale=SCORE_SCALE)
 main_group.append(score_group)
 
 if not DISPLAY_VERTICAL:
-    left_panel_bmp = displayio.Bitmap(OFFSET_X // SCORE_SCALE, DISPLAY_HEIGHT // SCORE_SCALE, 1)
+    left_panel_bmp = displayio.Bitmap(
+        OFFSET_X // SCORE_SCALE, DISPLAY_HEIGHT // SCORE_SCALE, 1
+    )
     left_panel_palette = displayio.Palette(1)
     left_panel_palette[0] = 0x000000
     left_panel_bg = displayio.TileGrid(
@@ -504,8 +515,8 @@ if not DISPLAY_VERTICAL:
 
 _maze_bmp, maze_palette = adafruit_imageload.load("images/maze_empty.bmp")
 if TILE_SIZE != 6:
-    maze_bmp = displayio.Bitmap(GAME_WIDTH, GAME_HEIGHT, 2 ** _maze_bmp.bits_per_value)
-    bitmaptools.rotozoom(maze_bmp, _maze_bmp, scale = TILE_SIZE / 6)
+    maze_bmp = displayio.Bitmap(GAME_WIDTH, GAME_HEIGHT, 2**_maze_bmp.bits_per_value)
+    bitmaptools.rotozoom(maze_bmp, _maze_bmp, scale=TILE_SIZE / 6)
 else:
     maze_bmp = _maze_bmp
 
@@ -615,9 +626,9 @@ if TILE_SIZE != 8:
     sprite_sheet = displayio.Bitmap(
         _sprite_sheet.width * TILE_SIZE // 8,
         _sprite_sheet.height * TILE_SIZE // 8,
-        2 ** _sprite_sheet.bits_per_value
+        2**_sprite_sheet.bits_per_value,
     )
-    bitmaptools.rotozoom(sprite_sheet, _sprite_sheet, scale = TILE_SIZE / 8)
+    bitmaptools.rotozoom(sprite_sheet, _sprite_sheet, scale=TILE_SIZE / 8)
 else:
     sprite_sheet = _sprite_sheet
 
@@ -651,10 +662,15 @@ class PacMan:
     }
 
     DEATH_FRAMES = [((TILE_SIZE * 6) + i * TILE_SIZE_X_2, 0) for i in range(11)]
-    SCORE_FRAMES = [(0, _dir[16]), (_dir[2], _dir[16]), (_dir[4], _dir[16]), (_dir[6], _dir[16])]
+    SCORE_FRAMES = [
+        (0, _dir[16]),
+        (_dir[2], _dir[16]),
+        (_dir[4], _dir[16]),
+        (_dir[6], _dir[16]),
+    ]
 
     def __init__(self):
-        print('sprite height:',sprite_sheet.height)
+        print("sprite height:", sprite_sheet.height)
         self.sprite = displayio.TileGrid(
             sprite_sheet,
             pixel_shader=sprite_palette,
@@ -683,15 +699,17 @@ class PacMan:
     @property
     def ms(self) -> bool:
         return self._ms
-    
+
     @ms.setter
     def ms(self, value: bool) -> None:
         self._ms = value
-        maze_palette[1] = 0xfc0000 if value else 0x2121ff
-        maze_palette[3] = 0xffa37f if value else 0x000000
+        maze_palette[1] = 0xFC0000 if value else 0x2121FF
+        maze_palette[3] = 0xFFA37F if value else 0x000000
 
     def _set_tile(self, fx, fy):
-        self.sprite[0, 0] = (fy // TILE_SIZE_X_2) * (sprite_sheet.width // TILE_SIZE_X_2) + (fx // TILE_SIZE_X_2)
+        self.sprite[0, 0] = (fy // TILE_SIZE_X_2) * (
+            sprite_sheet.width // TILE_SIZE_X_2
+        ) + (fx // TILE_SIZE_X_2)
 
     def set_frame(self, direction, frame_idx):
         if direction == DIR_NONE:
@@ -1034,13 +1052,15 @@ class Ghost:
         center_y = self.y + TILE_SIZE
         dist_x = min(
             abs((center_x - TILE_SIZE__2) % TILE_SIZE),
-            TILE_SIZE - abs((center_x - TILE_SIZE__2) % TILE_SIZE)
+            TILE_SIZE - abs((center_x - TILE_SIZE__2) % TILE_SIZE),
         )
         dist_y = min(
             abs((center_y - TILE_SIZE__2) % TILE_SIZE),
-            TILE_SIZE - abs((center_y - TILE_SIZE__2) % TILE_SIZE)
+            TILE_SIZE - abs((center_y - TILE_SIZE__2) % TILE_SIZE),
         )
-        threshold = 1.5 * TILE_SIZE / 8 if self.mode == MODE_EATEN else 0.7 * TILE_SIZE / 8
+        threshold = (
+            1.5 * TILE_SIZE / 8 if self.mode == MODE_EATEN else 0.7 * TILE_SIZE / 8
+        )
         return dist_x <= threshold and dist_y <= threshold
 
     def get_chase_target(self, pacman, ghosts):
@@ -1334,7 +1354,9 @@ for i in range(5):
     if DISPLAY_VERTICAL:
         # Position at bottom left, spaced 16 pixels apart
         life_tg.x = (OFFSET_X + (3 * TILE_SIZE) + (i * TILE_SIZE_X_2)) // SCORE_SCALE
-        life_tg.y = (OFFSET_Y + GAME_HEIGHT * GAME_SCALE + TILE_SIZE__2) // SCORE_SCALE  # Below game area
+        life_tg.y = (
+            OFFSET_Y + GAME_HEIGHT * GAME_SCALE + TILE_SIZE__2
+        ) // SCORE_SCALE  # Below game area
     else:
         life_tg.x = TILE_SIZE_X_2 + 4 + (i * int(0.06 * DISPLAY_WIDTH / SCORE_SCALE))
         life_tg.y = int(0.83 * DISPLAY_HEIGHT / SCORE_SCALE)
@@ -1367,58 +1389,100 @@ try:
         font = bitmap_font.load_font("fonts/press_start_2p.bdf")
 
         one_up_label = label.Label(
-            font, text="1UP", color=0xFFFFFF,
+            font,
+            text="1UP",
+            color=0xFFFFFF,
         )
 
         score_label = label.Label(
-            font, text="0", color=0xFFFFFF,
+            font,
+            text="0",
+            color=0xFFFFFF,
         )
 
         hs_title = label.Label(
-            font, text="HIGH SCORE", color=0xFFFFFF,
+            font,
+            text="HIGH SCORE",
+            color=0xFFFFFF,
         )
         high_score_label = label.Label(
-            font, text="0", color=0xFFFFFF,
+            font,
+            text="0",
+            color=0xFFFFFF,
         )
 
         level_label = label.Label(
-            font, text="LVL 1", color=0xFFFF00,
+            font,
+            text="LVL 1",
+            color=0xFFFF00,
         )
 
         if DISPLAY_VERTICAL:
             one_up_label.x, one_up_label.y = 8, 8  # top left
             score_label.x, score_label.y = 8, 24  # below 1UP
             hs_title.anchor_point = (0.5, 0.0)
-            hs_title.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 8)  # top center
+            hs_title.anchored_position = (
+                DISPLAY_WIDTH // SCORE_SCALE // 2,
+                8,
+            )  # top center
             high_score_label.anchor_point = (0.5, 0.0)
-            high_score_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 24)  # below title
+            high_score_label.anchored_position = (
+                DISPLAY_WIDTH // SCORE_SCALE // 2,
+                24,
+            )  # below title
 
             if DISPLAY_WIDTH < 240:
                 level_label.anchor_point = (0.5, 0.0)
-                level_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE // 2, 40)  # below high score
+                level_label.anchored_position = (
+                    DISPLAY_WIDTH // SCORE_SCALE // 2,
+                    40,
+                )  # below high score
             else:
                 level_label.anchor_point = (1.0, 0.0)
-                level_label.anchored_position = (DISPLAY_WIDTH // SCORE_SCALE - 8, 8)  # top right
-            
+                level_label.anchored_position = (
+                    DISPLAY_WIDTH // SCORE_SCALE - 8,
+                    8,
+                )  # top right
+
         else:
-            one_up_label.x, one_up_label.y = TILE_SIZE_X_2 + 4, int(0.1 * DISPLAY_HEIGHT / SCORE_SCALE)
-            score_label.x, score_label.y = TILE_SIZE_X_2 + 4, int(0.17 * DISPLAY_HEIGHT / SCORE_SCALE)
-            high_score_label.x, high_score_label.y = TILE_SIZE_X_2 + 4, int(0.43 * DISPLAY_HEIGHT / SCORE_SCALE)
-            level_label.x, level_label.y = TILE_SIZE_X_2 + 4, int(0.58 * DISPLAY_HEIGHT / SCORE_SCALE)
+            one_up_label.x, one_up_label.y = (
+                TILE_SIZE_X_2 + 4,
+                int(0.1 * DISPLAY_HEIGHT / SCORE_SCALE),
+            )
+            score_label.x, score_label.y = (
+                TILE_SIZE_X_2 + 4,
+                int(0.17 * DISPLAY_HEIGHT / SCORE_SCALE),
+            )
+            high_score_label.x, high_score_label.y = (
+                TILE_SIZE_X_2 + 4,
+                int(0.43 * DISPLAY_HEIGHT / SCORE_SCALE),
+            )
+            level_label.x, level_label.y = (
+                TILE_SIZE_X_2 + 4,
+                int(0.58 * DISPLAY_HEIGHT / SCORE_SCALE),
+            )
 
             hs_title.text = "HIGH"
-            hs_title.x, hs_title.y = TILE_SIZE_X_2 + 4, int(0.31 * DISPLAY_HEIGHT / SCORE_SCALE)
+            hs_title.x, hs_title.y = (
+                TILE_SIZE_X_2 + 4,
+                int(0.31 * DISPLAY_HEIGHT / SCORE_SCALE),
+            )
 
             hs_title2 = label.Label(
-                font, text="SCORE", color=0xFFFFFF,
+                font,
+                text="SCORE",
+                color=0xFFFFFF,
             )
-            hs_title2.x, hs_title2.y = TILE_SIZE_X_2 + 4, int(0.36 * DISPLAY_HEIGHT / SCORE_SCALE)
+            hs_title2.x, hs_title2.y = (
+                TILE_SIZE_X_2 + 4,
+                int(0.36 * DISPLAY_HEIGHT / SCORE_SCALE),
+            )
 
         game_over_label = label.Label(font, text="GAME OVER", color=0xFF0000)
         game_over_label.anchor_point = (0.5, 0.5)
         game_over_label.anchored_position = (
             OFFSET_X + int(MAZE_COLS * TILE_SIZE * GAME_SCALE / 2),
-            OFFSET_Y + int(17.5 * TILE_SIZE * GAME_SCALE)
+            OFFSET_Y + int(17.5 * TILE_SIZE * GAME_SCALE),
         )
         game_over_label.hidden = True
 
@@ -1426,7 +1490,7 @@ try:
         ready_label.anchor_point = (0.5, 0.5)
         ready_label.anchored_position = game_over_label.anchored_position
         ready_label.hidden = True
-        
+
         score_group.append(one_up_label)
         score_group.append(score_label)
         score_group.append(hs_title)
@@ -1448,8 +1512,12 @@ except Exception as e:
 gamepad = relic_usb_host_gamepad.Gamepad(debug=False)
 gamepad.joystick_threshold = 0.8
 
+
 def is_button_press(*buttons: int) -> bool:
-    return (gamepad.connected and any(event.pressed and event.key_number in buttons for event in gamepad.events))
+    return gamepad.connected and any(
+        event.pressed and event.key_number in buttons for event in gamepad.events
+    )
+
 
 sound = SoundEngine()
 high_scores = HighScoreManager()
@@ -1565,7 +1633,12 @@ try:
         gamepad.update()
 
         # Exit game loop
-        if "\x1b" in keys or "Q" in keys or gamepad.buttons.HOME or (gamepad.buttons.SELECT and gamepad.buttons.START):
+        if (
+            "\x1b" in keys
+            or "Q" in keys
+            or gamepad.buttons.HOME
+            or (gamepad.buttons.SELECT and gamepad.buttons.START)
+        ):
             break
 
         # Toggle sound
@@ -1576,10 +1649,16 @@ try:
         if gamepad.buttons.SELECT:
             for event in gamepad.events:
                 if event.pressed:
-                    if event.key_number == relic_usb_host_gamepad.BUTTON_A:  # SELECT+A = toggle sound
+                    if (
+                        event.key_number == relic_usb_host_gamepad.BUTTON_A
+                    ):  # SELECT+A = toggle sound
                         settings.sound_enabled = not settings.sound_enabled
-                    elif event.key_number == relic_usb_host_gamepad.BUTTON_B:  # SELECT+B = toggle joystick y-axis inversion
-                        settings.left_joystick_invert_y = not settings.left_joystick_invert_y
+                    elif (
+                        event.key_number == relic_usb_host_gamepad.BUTTON_B
+                    ):  # SELECT+B = toggle joystick y-axis inversion
+                        settings.left_joystick_invert_y = (
+                            not settings.left_joystick_invert_y
+                        )
 
         # Toggle Ms. Pacman
         if "M" in keys or is_button_press(relic_usb_host_gamepad.BUTTON_X):
@@ -1620,13 +1699,33 @@ try:
             # print(f"mode switching took: {now - play_state_start}")
 
             # Read input
-            if "\x1b[A" in keys or "W" in keys or gamepad.buttons.UP or gamepad.buttons.JOYSTICK_UP:
+            if (
+                "\x1b[A" in keys
+                or "W" in keys
+                or gamepad.buttons.UP
+                or gamepad.buttons.JOYSTICK_UP
+            ):
                 pacman.next_direction = DIR_UP
-            elif "\x1b[B" in keys or "S" in keys or gamepad.buttons.DOWN or gamepad.buttons.JOYSTICK_DOWN:
+            elif (
+                "\x1b[B" in keys
+                or "S" in keys
+                or gamepad.buttons.DOWN
+                or gamepad.buttons.JOYSTICK_DOWN
+            ):
                 pacman.next_direction = DIR_DOWN
-            elif "\x1b[D" in keys or "A" in keys or gamepad.buttons.LEFT or gamepad.buttons.JOYSTICK_LEFT:
+            elif (
+                "\x1b[D" in keys
+                or "A" in keys
+                or gamepad.buttons.LEFT
+                or gamepad.buttons.JOYSTICK_LEFT
+            ):
                 pacman.next_direction = DIR_LEFT
-            elif "\x1b[C" in keys or "D" in keys or gamepad.buttons.RIGHT or gamepad.buttons.JOYSTICK_RIGHT:
+            elif (
+                "\x1b[C" in keys
+                or "D" in keys
+                or gamepad.buttons.RIGHT
+                or gamepad.buttons.JOYSTICK_RIGHT
+            ):
                 pacman.next_direction = DIR_RIGHT
 
             # now = time.monotonic()
@@ -1775,7 +1874,9 @@ try:
                         if high_scores.is_high_score(score):
                             high_scores.add_score(score, "PAC")
                             if high_score_label:
-                                high_score_label.text = str(high_scores.get_high_score())
+                                high_score_label.text = str(
+                                    high_scores.get_high_score()
+                                )
 
                         if game_over_label:
                             game_over_label.hidden = False
@@ -1894,7 +1995,7 @@ finally:
 
     # save settings
     settings.save()
-    
+
     # Clean up
     sound.deinit()  # stop audio and deinit dac
     gamepad.disconnect()  # release usb gamepad resources

@@ -653,12 +653,12 @@ gc.collect()
 class PacMan:
     """Pac-Man player character."""
 
-    # TILE_SIZE = 8: 0, 8, 16, 24, 32, 40, 48   Faster than doing the math each time
+    # TILE_SIZE = 6: 0, 6, 12, 18, 24, 30, 36, ... Faster than doing the math each time
     _dir = [(i * TILE_SIZE) for i in range(27)]
 
     FRAMES = {
         DIR_RIGHT: [(0, 0), (_dir[2], 0), (_dir[4], 0)],
-        DIR_LEFT: [(0, _dir[4]), (_dir[2], _dir[2]), (_dir[4], 0)],
+        DIR_LEFT: [(0, _dir[2]), (_dir[2], _dir[2]), (_dir[4], 0)],
         DIR_UP: [(0, _dir[4]), (_dir[2], _dir[4]), (_dir[4], 0)],
         DIR_DOWN: [(0, _dir[6]), (_dir[2], _dir[6]), (_dir[4], 0)],
     }

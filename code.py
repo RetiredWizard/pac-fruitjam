@@ -291,6 +291,7 @@ class SoundEngine:
     def play_startup(self):
         """Play startup jingle."""
         if not self._enabled or not self.synth:
+            time.sleep(2)
             return
 
         T = 0.08
@@ -1329,13 +1330,11 @@ for i, (gx, gy, x_off) in enumerate(spawn_points):
     ghosts.append(ghost)
     game_group.append(ghost.sprite)
 
-
-# Bonus fruit
 def get_tile_index(px, py):
     tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
     return (py // TILE_SIZE) * tiles_per_row + (px // TILE_SIZE_X_2)
 
-
+# Bonus fruit
 bonus_fruit = displayio.TileGrid(
     sprite_sheet,
     pixel_shader=sprite_palette,
@@ -1500,6 +1499,36 @@ try:
         ready_label.anchored_position = game_over_label.anchored_position
         ready_label.hidden = True
 
+        # Audio indicator
+        sound_off = displayio.TileGrid(
+            sprite_sheet,
+            pixel_shader=sprite_palette,
+            width=1,
+            height=2,
+            tile_width=TILE_SIZE_X_2,
+            tile_height=TILE_SIZE,
+        )
+        sound_off.x = TILE_SIZE_X_2 + 4
+        sound_off.y = DISPLAY_HEIGHT - TILE_SIZE_X_2
+        sound_off.hidden = True
+        sound_off[0, 0] = 38
+        sound_off[0, 1] = 52
+
+        # Y-Invert indicator
+        y_invert = displayio.TileGrid(
+            sprite_sheet,
+            pixel_shader=sprite_palette,
+            width=1,
+            height=2,
+            tile_width=TILE_SIZE_X_2,
+            tile_height=TILE_SIZE,
+        )
+        y_invert.x = TILE_SIZE_X_2 + TILE_SIZE_X_2 + 4
+        y_invert.y = DISPLAY_HEIGHT - TILE_SIZE_X_2
+        y_invert.hidden = True
+        y_invert[0, 0] = 37
+        y_invert[0, 1] = 51
+
         score_group.append(one_up_label)
         score_group.append(score_label)
         score_group.append(hs_title)
@@ -1507,6 +1536,8 @@ try:
             score_group.append(hs_title2)
         score_group.append(high_score_label)
         score_group.append(level_label)
+        score_group.append(sound_off)
+        score_group.append(y_invert)
 
         main_group.append(game_over_label)
         main_group.append(ready_label)
@@ -1615,6 +1646,16 @@ if score_label:
 if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
 
+if settings.sound_enabled:
+    sound_off.hidden = True
+else:
+    sound_off.hidden = False
+
+if settings.left_joystick_invert_y:
+    y_invert.hidden = False
+else:
+    y_invert.hidden = True
+
 print(f"Free memory: {gc.mem_free()}")
 
 game_state = STATE_READY
@@ -1663,6 +1704,10 @@ try:
         # Toggle sound
         if "\n" in keys or "Z" in keys:
             settings.sound_enabled = not settings.sound_enabled
+            if settings.sound_enabled:
+                sound_off.hidden = True
+            else:
+                sound_off.hidden = False
 
         # Toggle Ms. Pacman
         if "M" in keys:
@@ -1676,8 +1721,16 @@ try:
                         event.key_number == relic_usb_host_gamepad.BUTTON_A
                     ):  # SELECT+A = toggle sound
                         settings.sound_enabled = not settings.sound_enabled
+                        if settings.sound_enabled:
+                            sound_off.hidden = True
+                        else:
+                            sound_off.hidden = False
                     elif event.key_number == relic_usb_host_gamepad.BUTTON_B:  # SELECT+B = toggle joystick y-axis inversion
                         settings.left_joystick_invert_y = not settings.left_joystick_invert_y
+                        if settings.left_joystick_invert_y:
+                            y_invert.hidden = False
+                        else:
+                            y_invert.hidden = True
                     elif event.key_number == relic_usb_host_gamepad.BUTTON_X:  # SELECT+X = toggle Ms. Pacman
                         settings.ms_pacman = not settings.ms_pacman
 

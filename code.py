@@ -1499,6 +1499,26 @@ try:
         ready_label.anchored_position = game_over_label.anchored_position
         ready_label.hidden = True
 
+        # Audio indicator
+        _sound_off_bmp, sound_off_palette = adafruit_imageload.load("images/sound_off.bmp")
+        sound_off = displayio.TileGrid(
+            _sound_off_bmp,
+            pixel_shader=sound_off_palette,
+            x=TILE_SIZE_X_2 + 4,
+            y=DISPLAY_HEIGHT - TILE_SIZE_X_2
+        )
+        sound_off.hidden = True
+
+        # Y-Invert indicator
+        _y_invert_bmp, y_invert_palette = adafruit_imageload.load("images/y_invert.bmp")
+        y_invert = displayio.TileGrid(
+            _y_invert_bmp,
+            pixel_shader=y_invert_palette,
+            x=TILE_SIZE_X_2 + TILE_SIZE_X_2 + 4,
+            y=DISPLAY_HEIGHT - TILE_SIZE_X_2
+        )
+        y_invert.hidden = True
+
         score_group.append(one_up_label)
         score_group.append(score_label)
         score_group.append(hs_title)
@@ -1506,6 +1526,8 @@ try:
             score_group.append(hs_title2)
         score_group.append(high_score_label)
         score_group.append(level_label)
+        score_group.append(sound_off)
+        score_group.append(y_invert)
 
         main_group.append(game_over_label)
         main_group.append(ready_label)
@@ -1614,6 +1636,16 @@ if score_label:
 if high_score_label:
     high_score_label.text = str(high_scores.get_high_score())
 
+if settings.sound_enabled:
+    sound_off.hidden = True
+else:
+    sound_off.hidden = False
+
+if settings.left_joystick_invert_y:
+    y_invert.hidden = False
+else:
+    y_invert.hidden = True
+
 print(f"Free memory: {gc.mem_free()}")
 
 game_state = STATE_READY
@@ -1662,6 +1694,10 @@ try:
         # Toggle sound
         if "\n" in keys or "Z" in keys:
             settings.sound_enabled = not settings.sound_enabled
+            if settings.sound_enabled:
+                sound_off.hidden = True
+            else:
+                sound_off.hidden = False
 
         # Toggle Ms. Pacman
         if "M" in keys:
@@ -1675,8 +1711,16 @@ try:
                         event.key_number == relic_usb_host_gamepad.BUTTON_A
                     ):  # SELECT+A = toggle sound
                         settings.sound_enabled = not settings.sound_enabled
+                        if settings.sound_enabled:
+                            sound_off.hidden = True
+                        else:
+                            sound_off.hidden = False
                     elif event.key_number == relic_usb_host_gamepad.BUTTON_B:  # SELECT+B = toggle joystick y-axis inversion
                         settings.left_joystick_invert_y = not settings.left_joystick_invert_y
+                        if settings.left_joystick_invert_y:
+                            y_invert.hidden = False
+                        else:
+                            y_invert.hidden = True
                     elif event.key_number == relic_usb_host_gamepad.BUTTON_X:  # SELECT+X = toggle Ms. Pacman
                         settings.ms_pacman = not settings.ms_pacman
 

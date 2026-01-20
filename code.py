@@ -15,6 +15,7 @@ import supervisor
 import synthio
 import json
 import bitmaptools
+from traceback import print_exception
 from adafruit_fruitjam.peripherals import (
     Peripherals,
     request_display_config,
@@ -83,12 +84,15 @@ DISPLAY_HEIGHT = SCREEN_WIDTH if DISPLAY_VERTICAL else SCREEN_HEIGHT
 
 # Offset to position game on right side of screen
 # Right side: 640 - (224*2) = 192 pixels from right edge
-OFFSET_X = (DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE) // 2
-OFFSET_Y = (DISPLAY_HEIGHT - GAME_HEIGHT * GAME_SCALE) // 2  # Centered vertically
+OFFSET_X = int((DISPLAY_WIDTH - GAME_WIDTH * GAME_SCALE) // 2)
+OFFSET_Y = int((DISPLAY_HEIGHT - GAME_HEIGHT * GAME_SCALE) // 2)  # Centered vertically
 
 # Movement speeds (pixels per frame at game resolution)
 PACMAN_SPEED = 1.3 * TILE_SIZE / 8  # was 1.3
-GHOST_SPEED = 1.22 * TILE_SIZE / 8  # was 1.22
+GHOST_SPEED_LVL1 = 1.22 * TILE_SIZE / 8  # was 1.22
+GHOST_SPEED = GHOST_SPEED_LVL1
+GHOST_SPEED_INCFACT = 1.05
+GHOST_SPEED_INCPOWER = [0,1,2,2,3,3,4,4,5,5,6,6,7]
 FRAME_DELAY = 0.016  # ~60 FPS target  was 0.016
 
 # Directions
@@ -120,6 +124,8 @@ STATE_LEVEL_COMPLETE = 4
 STATE_EATING_FRUIT = 5
 STATE_READY = 6
 
+MAX_LIVES = 3
+
 # Fruit point values per level
 FRUIT_POINTS = [100, 300, 500, 500, 700, 700, 1000, 1000, 2000, 2000, 3000, 3000, 5000]
 
@@ -146,6 +152,15 @@ FRUIT_LEVELS = [
     (18 * TILE_SIZE, 6 * TILE_SIZE)
 ]
 
+FRUIT_POINTS_SPRITE = [
+    (0, 18 * TILE_SIZE), (TILE_SIZE_X_2, 18 * TILE_SIZE),
+    (4 * TILE_SIZE, 18 * TILE_SIZE), (4 * TILE_SIZE, 18 * TILE_SIZE),
+    (6 * TILE_SIZE, 18 * TILE_SIZE), (6 * TILE_SIZE, 18 * TILE_SIZE),
+    (8 * TILE_SIZE, 18 * TILE_SIZE), (8 * TILE_SIZE, 18 * TILE_SIZE),
+    (8 * TILE_SIZE, 20 * TILE_SIZE), (8 * TILE_SIZE, 20 * TILE_SIZE),
+    (8 * TILE_SIZE, 22 * TILE_SIZE), (8 * TILE_SIZE, 22 * TILE_SIZE),
+    (8 * TILE_SIZE, 24 * TILE_SIZE)
+]
 # =============================================================================
 # MAZE DATA
 # =============================================================================
@@ -509,7 +524,7 @@ main_group.append(score_group)
 
 if not DISPLAY_VERTICAL:
     left_panel_bmp = displayio.Bitmap(
-        OFFSET_X // SCORE_SCALE, DISPLAY_HEIGHT // SCORE_SCALE, 1
+        int(OFFSET_X // SCORE_SCALE), int(DISPLAY_HEIGHT // SCORE_SCALE), 1
     )
     left_panel_palette = displayio.Palette(1)
     left_panel_palette[0] = 0x000000
@@ -716,9 +731,9 @@ class PacMan:
         maze_palette[3] = 0xFFB694 if value else 0x000000
 
     def _set_tile(self, fx, fy):
-        self.sprite[0, 0] = (fy // TILE_SIZE_X_2) * (
+        self.sprite[0, 0] = int((fy // TILE_SIZE_X_2) * (
             sprite_sheet.width // TILE_SIZE_X_2
-        ) + (fx // TILE_SIZE_X_2)
+        ) + (fx // TILE_SIZE_X_2))
 
     def set_frame(self, direction, frame_idx):
         if direction == DIR_NONE:
@@ -968,7 +983,7 @@ class Ghost:
         if self.mode == MODE_FRIGHTENED:
             base_y = 8 * TILE_SIZE
             if (
-                self.frightened_timer > (FRIGHTENED_DURATION - 120)
+                self.frightened_timer > (FRIGHTENED_DURATION - (level * 10) - 110)
                 and (self.frightened_timer // 10) % 2 == 0
             ):
                 base_x = 20 * TILE_SIZE
@@ -997,7 +1012,9 @@ class Ghost:
             base_x += (frame_idx % 2) * TILE_SIZE_X_2
 
         tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
-        base_tile = (base_y // TILE_SIZE) * tiles_per_row + (base_x // TILE_SIZE_X_2)
+        base_tile = int(
+            (base_y // TILE_SIZE) * tiles_per_row + (base_x // TILE_SIZE_X_2)
+        )
         self.sprite[0, 0] = base_tile
         self.sprite[0, 1] = base_tile + tiles_per_row
 
@@ -1171,8 +1188,13 @@ class Ghost:
             if self.can_move(rev):
                 self.direction = rev
                 center_x, center_y = self.x + TILE_SIZE, self.y + TILE_SIZE
-                self.x = (center_x // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
-                self.y = (center_y // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+                self.x = int(
+                    (center_x // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+                )
+                self.y = int(
+                    (center_y // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+                )
+
                 return
 
         if self.at_tile_center():
@@ -1249,8 +1271,8 @@ class Ghost:
                 self.direction = best_dir
 
             center_x, center_y = self.x + TILE_SIZE, self.y + TILE_SIZE
-            self.x = (center_x // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
-            self.y = (center_y // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+            self.x = int(center_x // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
+            self.y = int(center_y // TILE_SIZE) * TILE_SIZE + TILE_SIZE__2 - TILE_SIZE
 
         if self.direction != DIR_NONE:
             speed = GHOST_SPEED
@@ -1258,6 +1280,11 @@ class Ghost:
                 speed *= 0.6
             elif self.mode == MODE_EATEN:
                 speed = 2.0
+            elif (
+                round(self.y / TILE_SIZE) == 14 and
+                (self.x < 5 * TILE_SIZE or self.x > GAME_WIDTH - (4 * TILE_SIZE))
+            ):
+                speed *= 0.6
 
             if self.can_move(self.direction):
                 if self.direction == DIR_UP:
@@ -1332,46 +1359,62 @@ for i, (gx, gy, x_off) in enumerate(spawn_points):
 
 def get_tile_index(px, py):
     tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
-    return (py // TILE_SIZE) * tiles_per_row + (px // TILE_SIZE_X_2)
+    return int((py // TILE_SIZE_X_2) * tiles_per_row + (px // TILE_SIZE_X_2))
 
 # Bonus fruit
 bonus_fruit = displayio.TileGrid(
     sprite_sheet,
     pixel_shader=sprite_palette,
     width=1,
-    height=2,
+    height=1,
     tile_width=TILE_SIZE_X_2,
-    tile_height=TILE_SIZE,
+    tile_height=TILE_SIZE_X_2,
+)
+bonus_big_score = displayio.TileGrid(
+    sprite_sheet,
+    pixel_shader=sprite_palette,
+    width=1,
+    height=1,
+    tile_width=TILE_SIZE_X_2,
+    tile_height=TILE_SIZE_X_2,
 )
 bonus_fruit.x = 13 * TILE_SIZE
 bonus_fruit.y = 17 * TILE_SIZE - TILE_SIZE__2
+bonus_big_score.x = 15 * TILE_SIZE
+bonus_big_score.y = 17 * TILE_SIZE - TILE_SIZE__2
+
+tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
+bonus_big_score[0, 0] = (9 * tiles_per_row) + 5
+
 bonus_fruit.hidden = True
+bonus_big_score.hidden = True
 game_group.append(bonus_fruit)
+game_group.append(bonus_big_score)
 
 # Life sprites (on left panel)
 life_sprites = []
-for i in range(5):
+for i in range(MAX_LIVES):
     life_tg = displayio.TileGrid(
         sprite_sheet,
         pixel_shader=sprite_palette,
         width=1,
-        height=2,
+        height=1,
         tile_width=TILE_SIZE_X_2,
-        tile_height=TILE_SIZE,
+        tile_height=TILE_SIZE_X_2,
     )
     if DISPLAY_VERTICAL:
         # Position at bottom left, spaced 16 pixels apart
-        life_tg.x = (OFFSET_X + (3 * TILE_SIZE) + (i * TILE_SIZE_X_2)) // SCORE_SCALE
-        life_tg.y = (
-            OFFSET_Y + GAME_HEIGHT * GAME_SCALE + TILE_SIZE__2
-        ) // SCORE_SCALE  # Below game area
+        life_tg.x = int(
+            (OFFSET_X + (3 * TILE_SIZE) + (i * TILE_SIZE_X_2)) // SCORE_SCALE
+        )
+        life_tg.y = int(
+            (OFFSET_Y + GAME_HEIGHT * GAME_SCALE + TILE_SIZE__2) // SCORE_SCALE
+          )  # Below game area
     else:
         life_tg.x = TILE_SIZE_X_2 + 4 + (i * int(0.06 * DISPLAY_WIDTH / SCORE_SCALE))
         life_tg.y = int(0.83 * DISPLAY_HEIGHT / SCORE_SCALE)
     base_tile = get_tile_index(SPRITE_LIFE[0], SPRITE_LIFE[1])
-    tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
     life_tg[0, 0] = base_tile
-    life_tg[0, 1] = base_tile + tiles_per_row
     life_tg.hidden = True
     life_sprites.append(life_tg)
     score_group.append(life_tg)
@@ -1430,25 +1473,25 @@ try:
             score_label.x, score_label.y = 8, 24  # below 1UP
             hs_title.anchor_point = (0.5, 0.0)
             hs_title.anchored_position = (
-                DISPLAY_WIDTH // SCORE_SCALE // 2,
+                int(DISPLAY_WIDTH // SCORE_SCALE // 2),
                 8,
             )  # top center
             high_score_label.anchor_point = (0.5, 0.0)
             high_score_label.anchored_position = (
-                DISPLAY_WIDTH // SCORE_SCALE // 2,
+                int(DISPLAY_WIDTH // SCORE_SCALE // 2),
                 24,
             )  # below title
 
             if DISPLAY_WIDTH < 240:
                 level_label.anchor_point = (0.5, 0.0)
                 level_label.anchored_position = (
-                    DISPLAY_WIDTH // SCORE_SCALE // 2,
+                    int(DISPLAY_WIDTH // SCORE_SCALE // 2),
                     40,
                 )  # below high score
             else:
                 level_label.anchor_point = (1.0, 0.0)
                 level_label.anchored_position = (
-                    DISPLAY_WIDTH // SCORE_SCALE - 8,
+                    int(DISPLAY_WIDTH // SCORE_SCALE - 8),
                     8,
                 )  # top right
 
@@ -1556,8 +1599,9 @@ settings = SettingsManager(sound, gamepad, pacman)
 # Game state
 score = 0
 last_score = 0
-lives = 3
+lives = MAX_LIVES
 level = 1
+GHOST_SPEED = GHOST_SPEED_LVL1
 dots_eaten = 0
 game_state = STATE_READY
 current_mode = MODE_SCATTER
@@ -1576,27 +1620,26 @@ level_complete_timer = 0
 blink_timer = 0
 blink_state = True
 
-
 def update_life_display():
     for i, sprite in enumerate(life_sprites):
         sprite.hidden = i >= lives - 1
 
-
-def update_fruit_sprite():
+def update_fruit_sprite(sprite_coords):
     fruit_idx = min(level - 1, len(FRUIT_LEVELS) - 1)
-    fx, fy = FRUIT_LEVELS[fruit_idx]
+    fx, fy = sprite_coords[fruit_idx]
     base_tile = get_tile_index(fx, fy)
-    tiles_per_row = sprite_sheet.width // TILE_SIZE_X_2
     bonus_fruit[0, 0] = base_tile
-    bonus_fruit[0, 1] = base_tile + tiles_per_row
 
+def cur_ghost_speed():
+    power_idx = min(level - 1, len(GHOST_SPEED_INCPOWER) - 1)
+    return GHOST_SPEED_LVL1 * (GHOST_SPEED_INCFACT ** GHOST_SPEED_INCPOWER[power_idx])
 
 def reset_game():
     global score, lives, level, dots_eaten, game_state, current_mode
     global mode_index, ghosts_eaten_count, bonus_fruit_active
 
     score = 0
-    lives = 3
+    lives = MAX_LIVES
     level = 1
     dots_eaten = 0
     current_mode = MODE_SCATTER
@@ -1614,14 +1657,14 @@ def reset_game():
         g.sprite.hidden = False
 
     update_life_display()
-    update_fruit_sprite()
+    update_fruit_sprite(FRUIT_LEVELS)
 
     if game_over_label:
         game_over_label.hidden = True
 
 
 update_life_display()
-update_fruit_sprite()
+update_fruit_sprite(FRUIT_LEVELS)
 
 # Displayio glitch causes Pac-Man to studder when game first starts, Updating the
 # score_label 10 times before the game starts gets the studders out of the way
@@ -1809,10 +1852,10 @@ try:
                         sound.play_waka()
 
                         if dots_eaten in (70, 170):
+                            update_fruit_sprite(FRUIT_LEVELS)
                             bonus_fruit_active = True
                             bonus_fruit_timer = 0
                             bonus_fruit.hidden = False
-                            update_fruit_sprite()
 
                     elif item == 2:
                         items_grid[tx, ty] = 0
@@ -1835,7 +1878,7 @@ try:
             for ghost in ghosts:
                 if ghost.mode == MODE_FRIGHTENED:
                     ghost.frightened_timer += 1
-                    if ghost.frightened_timer > FRIGHTENED_DURATION:
+                    if ghost.frightened_timer > FRIGHTENED_DURATION - (10 * level) + 10:
                         ghost.mode = current_mode
 
                 ghost.update(pacman, ghosts, current_mode)
@@ -1885,19 +1928,25 @@ try:
             # Bonus fruit
             if bonus_fruit_active:
                 bonus_fruit_timer += 1
-                if bonus_fruit_timer > 500:
+                if bonus_fruit_timer == 500:
                     bonus_fruit_active = False
                     bonus_fruit.hidden = True
-                else:
+                elif bonus_fruit_timer < 500:
                     fx, fy = 13 * TILE_SIZE, 17 * TILE_SIZE
                     dx = abs((pacman.x + TILE_SIZE) - (fx + TILE_SIZE))
                     dy = abs((pacman.y + TILE_SIZE) - (fy + TILE_SIZE))
                     if dx < TILE_SIZE and dy < TILE_SIZE:
                         fruit_idx = min(level - 1, len(FRUIT_POINTS) - 1)
                         score += FRUIT_POINTS[fruit_idx]
+                        bonus_fruit_timer = 500
                         sound.play_eat_ghost()
-                        bonus_fruit_active = False
-                        bonus_fruit.hidden = True
+                        update_fruit_sprite(FRUIT_POINTS_SPRITE)
+                        if level >= 7:
+                            bonus_big_score.hidden = False
+                elif bonus_fruit_timer > 650:
+                    bonus_fruit_active = False
+                    bonus_fruit.hidden = True
+                    bonus_big_score.hidden = True
 
             # now = time.monotonic()
             # print(f"bonus_fruit took: {now - prev_time}")
@@ -1972,7 +2021,7 @@ try:
             if level_complete_timer % 15 == 0:
                 try:
                     maze_palette[1] = (
-                        frame_blink_palette | 0x333333 if (level_complete_timer // 15) % 2 else frame_blink_palette
+                        frame_blink_palette | 0x777777 if (level_complete_timer // 15) % 2 else frame_blink_palette
                     )
                 except:
                     pass
@@ -1984,6 +2033,7 @@ try:
                     pass
 
                 level += 1
+                GHOST_SPEED = cur_ghost_speed()
                 dots_eaten = 0
                 reset_dots()
                 pacman.reset()
@@ -1998,7 +2048,7 @@ try:
 
                 if level_label:
                     level_label.text = f"LVL {level}"
-                update_fruit_sprite()
+                update_fruit_sprite(FRUIT_LEVELS)
 
                 game_state = STATE_READY
                 if ready_label:
@@ -2008,6 +2058,7 @@ try:
         elif game_state == STATE_GAME_OVER:
             if " " in keys or gamepad.buttons.START:
                 reset_game()
+                GHOST_SPEED = GHOST_SPEED_LVL1
                 level_complete_timer = 0
                 level_label.text = f"LVL {level}"
                 game_state = STATE_READY
@@ -2050,6 +2101,9 @@ try:
 
 except KeyboardInterrupt:  # Ctrl+C was pressed
     pass
+
+except Exception as err:
+    print_exception(err,err,err.__traceback__ if hasattr(err,'__traceback__') else None)
 
 finally:
     # save high score

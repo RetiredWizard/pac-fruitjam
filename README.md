@@ -77,6 +77,8 @@ Copy these libraries from the [Adafruit CircuitPython Bundle](https://circuitpyt
 
 - `adafruit_bitmap_font/` (folder)
 - `adafruit_display_text/` (folder)
+- `adafruit_imageload/` (folder)
+- `adafruit_fruitjam/` (folder)
 
 Copy these libraries from the [Adafruit Community Bundle](https://circuitpython.org/libraries) to your `CIRCUITPY/lib/` folder:
 
